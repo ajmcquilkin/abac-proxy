@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "proxy",
+    srcs = [
+        "examples.go",
+        "interceptor.go",
+        "proxy.go",
+    ],
+    importpath = "github.com/abac/proxy/internal/proxy",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/log",
+        "@org_uber_go_zap//:zap",
+    ],
+)

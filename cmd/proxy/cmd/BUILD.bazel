@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//internal/log",
+        "//internal/proxy",
         "@com_github_spf13_cobra//:cobra",
         "@com_github_spf13_viper//:viper",
     ],

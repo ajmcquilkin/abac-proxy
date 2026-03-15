@@ -26,19 +26,27 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	flags := rootCmd.Flags()
-	flags.Int("grpcport", 50052, "gRPC listen port")
+	flags.Int("port", 8080, "HTTP proxy listen port")
+	flags.String("target", "", "Target base URL to proxy to")
+	flags.Bool("tls", false, "Enable TLS for proxy server")
+	flags.String("cert", "", "TLS certificate file path")
+	flags.String("key", "", "TLS private key file path")
 
 	_ = v.BindPFlags(flags)
-	_ = v.BindEnv("grpcport", "GRPC_PORT")
+	_ = v.BindEnv("port", "PROXY_PORT")
+	_ = v.BindEnv("target", "PROXY_TARGET")
+	_ = v.BindEnv("tls", "PROXY_TLS")
+	_ = v.BindEnv("cert", "PROXY_CERT")
+	_ = v.BindEnv("key", "PROXY_KEY")
 
 	return rootCmd
 }
 
 func newConfigViper() *viper.Viper {
 	v := viper.New()
-	v.SetDefault("grpcport", 50052)
+	v.SetDefault("port", 8080)
+	v.SetDefault("tls", false)
 	v.AutomaticEnv()
-	_ = v.BindEnv("grpcport", "GRPC_PORT")
 
 	return v
 }

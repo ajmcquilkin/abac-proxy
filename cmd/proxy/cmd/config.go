@@ -5,11 +5,16 @@ import (
 	"fmt"
 
 	"github.com/abac/proxy/internal/log"
+	"github.com/abac/proxy/internal/proxy"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	GRPCPort int `mapstructure:"grpcport"`
+	Port   int    `mapstructure:"port"`
+	Target string `mapstructure:"target"`
+	TLS    bool   `mapstructure:"tls"`
+	Cert   string `mapstructure:"cert"`
+	Key    string `mapstructure:"key"`
 }
 
 type RootOptions struct {
@@ -30,17 +35,34 @@ func (o *RootOptions) Populate() error {
 }
 
 func (o *RootOptions) Validate() error {
-	if o.Config.GRPCPort <= 0 || o.Config.GRPCPort > 65535 {
-		return fmt.Errorf("grpcport must be between 1 and 65535, got %d", o.Config.GRPCPort)
+	if o.Config.Port <= 0 || o.Config.Port > 65535 {
+		return fmt.Errorf("port must be between 1 and 65535, got %d", o.Config.Port)
+	}
+	if o.Config.Target == "" {
+		return fmt.Errorf("target URL is required")
+	}
+	if o.Config.TLS {
+		if o.Config.Cert == "" {
+			return fmt.Errorf("cert file required when TLS is enabled")
+		}
+		if o.Config.Key == "" {
+			return fmt.Errorf("key file required when TLS is enabled")
+		}
 	}
 	return nil
 }
 
 func (o *RootOptions) Run(ctx context.Context) error {
-	logger := log.MustInitService("echo")
+	logger := log.MustInitService("abac-proxy")
 	defer log.Sync(logger)
 
-	log.From(ctx).Info("hello, world!")
+	interceptor := &proxy.PassthroughInterceptor{}
 
-	return nil
+	srv, err := proxy.NewServer(o.Config.Target, interceptor)
+	if err != nil {
+		return fmt.Errorf("failed to create proxy server: %w", err)
+	}
+
+	addr := fmt.Sprintf(":%d", o.Config.Port)
+	return srv.Start(ctx, addr, o.Config.TLS, o.Config.Cert, o.Config.Key)
 }
