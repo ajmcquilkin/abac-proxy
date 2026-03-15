@@ -80,12 +80,11 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 	return s.interceptor.InterceptResponse(resp)
 }
 
-func (s *Server) Start(ctx context.Context, addr string, tlsEnabled bool, certFile, keyFile string) error {
+func (s *Server) Start(ctx context.Context, addr string) error {
 	logger := log.From(ctx)
 	logger.Infow("starting proxy server",
 		"addr", addr,
 		"allowed_hosts", strings.Join(s.allowlist.GetHostList(), ", "),
-		"tls", tlsEnabled,
 	)
 
 	server := &http.Server{
@@ -93,8 +92,5 @@ func (s *Server) Start(ctx context.Context, addr string, tlsEnabled bool, certFi
 		Handler: s,
 	}
 
-	if tlsEnabled {
-		return server.ListenAndServeTLS(certFile, keyFile)
-	}
 	return server.ListenAndServe()
 }

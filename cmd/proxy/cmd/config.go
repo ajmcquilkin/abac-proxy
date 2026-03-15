@@ -12,9 +12,6 @@ import (
 type Config struct {
 	Port      int    `mapstructure:"port"`
 	Allowlist string `mapstructure:"allowlist"`
-	TLS       bool   `mapstructure:"tls"`
-	Cert      string `mapstructure:"cert"`
-	Key       string `mapstructure:"key"`
 	Policy    string `mapstructure:"policy"`
 }
 
@@ -45,14 +42,6 @@ func (o *RootOptions) Validate() error {
 	if o.Config.Policy == "" {
 		return fmt.Errorf("policy file is required")
 	}
-	if o.Config.TLS {
-		if o.Config.Cert == "" {
-			return fmt.Errorf("cert file required when TLS is enabled")
-		}
-		if o.Config.Key == "" {
-			return fmt.Errorf("key file required when TLS is enabled")
-		}
-	}
 	return nil
 }
 
@@ -71,5 +60,5 @@ func (o *RootOptions) Run(ctx context.Context) error {
 	}
 
 	addr := fmt.Sprintf(":%d", o.Config.Port)
-	return srv.Start(ctx, addr, o.Config.TLS, o.Config.Cert, o.Config.Key)
+	return srv.Start(ctx, addr)
 }
