@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "user": {
+    "token": "token_123",
+    "id": "user-123"
+  },
+  "baseUrl": "https://www.example.com",
+  "policies": [
+    {
+      "route": "/api/articles",
+      "method": "GET",
+      "action": "allow",
+      "response_filter": {
+        "type": "include_fields",
+        "fields": ["id", "title", "author.id", "author.name", "tags.*"]
+      }
+    },
+    {
+      "route": "/api/articles/*",
+      "method": "GET",
+      "action": "allow",
+      "response_filter": {
+        "type": "include_fields",
+        "fields": [
+          "id",
+          "title",
+          "comments.*.id",
+          "comments.*.text",
+          "comments.*.user.name"
+        ]
+      }
+    },
+    {
+      "route": "/api/users",
+      "method": "",
+      "action": "allow",
+      "response_filter": {
+        "type": "exclude_fields",
+        "fields": ["*.password", "*.ssn", "*.credit_card", "*.internal_notes"]
+      }
+    },
+    {
+      "route": "/api/teams",
+      "method": "GET",
+      "action": "allow",
+      "response_filter": {
+        "type": "exclude_fields",
+        "fields": [
+          "[].members[].email",
+          "[].members[].salary",
+          "[].members[].projects[].budget",
+          "[].members[].projects[].internal_notes"
+        ]
+      }
+    }
+  ],
+  "default_action": "deny"
+}

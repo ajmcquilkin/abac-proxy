@@ -10,11 +10,12 @@ import (
 )
 
 type Config struct {
-	Port   int    `mapstructure:"port"`
-	Target string `mapstructure:"target"`
-	TLS    bool   `mapstructure:"tls"`
-	Cert   string `mapstructure:"cert"`
-	Key    string `mapstructure:"key"`
+	Port      int    `mapstructure:"port"`
+	Allowlist string `mapstructure:"allowlist"`
+	TLS       bool   `mapstructure:"tls"`
+	Cert      string `mapstructure:"cert"`
+	Key       string `mapstructure:"key"`
+	Policy    string `mapstructure:"policy"`
 }
 
 type RootOptions struct {
@@ -38,8 +39,11 @@ func (o *RootOptions) Validate() error {
 	if o.Config.Port <= 0 || o.Config.Port > 65535 {
 		return fmt.Errorf("port must be between 1 and 65535, got %d", o.Config.Port)
 	}
-	if o.Config.Target == "" {
-		return fmt.Errorf("target URL is required")
+	if o.Config.Allowlist == "" {
+		return fmt.Errorf("allowlist file is required")
+	}
+	if o.Config.Policy == "" {
+		return fmt.Errorf("policy file is required")
 	}
 	if o.Config.TLS {
 		if o.Config.Cert == "" {
@@ -56,9 +60,12 @@ func (o *RootOptions) Run(ctx context.Context) error {
 	logger := log.MustInitService("abac-proxy")
 	defer log.Sync(logger)
 
-	interceptor := &proxy.PassthroughInterceptor{}
+	interceptor, err := proxy.NewABACInterceptor(o.Config.Policy)
+	if err != nil {
+		return fmt.Errorf("failed to create ABAC interceptor: %w", err)
+	}
 
-	srv, err := proxy.NewServer(o.Config.Target, interceptor)
+	srv, err := proxy.NewServer(o.Config.Allowlist, interceptor)
 	if err != nil {
 		return fmt.Errorf("failed to create proxy server: %w", err)
 	}

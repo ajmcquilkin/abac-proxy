@@ -27,14 +27,16 @@ func NewRootCommand() *cobra.Command {
 
 	flags := rootCmd.Flags()
 	flags.Int("port", 8080, "HTTP proxy listen port")
-	flags.String("target", "", "Target base URL to proxy to")
+	flags.String("allowlist", "", "Path to allowlist JSON file")
+	flags.String("policy", "", "Path to ABAC policy JSON file")
 	flags.Bool("tls", false, "Enable TLS for proxy server")
 	flags.String("cert", "", "TLS certificate file path")
 	flags.String("key", "", "TLS private key file path")
 
 	_ = v.BindPFlags(flags)
 	_ = v.BindEnv("port", "PROXY_PORT")
-	_ = v.BindEnv("target", "PROXY_TARGET")
+	_ = v.BindEnv("allowlist", "PROXY_ALLOWLIST")
+	_ = v.BindEnv("policy", "PROXY_POLICY")
 	_ = v.BindEnv("tls", "PROXY_TLS")
 	_ = v.BindEnv("cert", "PROXY_CERT")
 	_ = v.BindEnv("key", "PROXY_KEY")

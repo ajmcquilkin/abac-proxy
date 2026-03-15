@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -58,7 +59,7 @@ func ReadAndReplaceBody(resp *http.Response, modifier func([]byte) ([]byte, erro
 
 	resp.Body = io.NopCloser(bytes.NewReader(modifiedBody))
 	resp.ContentLength = int64(len(modifiedBody))
-	resp.Header.Set("Content-Length", string(rune(len(modifiedBody))))
+	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
 
 	return nil
 }

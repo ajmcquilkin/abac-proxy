@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "policy",
+    srcs = [
+        "engine.go",
+        "filter.go",
+        "matcher.go",
+    ],
+    importpath = "github.com/abac/proxy/internal/policy",
+    visibility = ["//:__subpackages__"],
+)

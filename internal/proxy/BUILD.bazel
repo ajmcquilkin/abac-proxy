@@ -3,6 +3,8 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "proxy",
     srcs = [
+        "abac_interceptor.go",
+        "allowlist.go",
         "examples.go",
         "interceptor.go",
         "proxy.go",
@@ -11,6 +13,7 @@ go_library(
     visibility = ["//:__subpackages__"],
     deps = [
         "//internal/log",
+        "//internal/policy",
         "@org_uber_go_zap//:zap",
     ],
 )

@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "user": {
+    "token": "token_123",
+    "id": "user-123"
+  },
+  "baseUrl": "https://jsonplaceholder.typicode.com",
+  "policies": [
+    {
+      "route": "/users",
+      "method": "GET",
+      "action": "allow",
+      "response_filter": {
+        "type": "include_fields",
+        "fields": ["[].id", "[].name", "[].address.city", "[].address.geo.*"]
+      }
+    },
+    {
+      "route": "/users/*",
+      "method": "GET",
+      "action": "allow",
+      "response_filter": {
+        "type": "include_fields",
+        "fields": ["id", "name", "address.city", "address.geo.*"]
+      }
+    }
+  ],
+  "default_action": "deny"
+}
