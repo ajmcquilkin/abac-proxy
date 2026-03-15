@@ -1,0 +1,7 @@
+# Declaration for gazelle is hand-written. Anything below is auto-generated with gazelle.
+
+load("@gazelle//:def.bzl", "gazelle")
+
+gazelle(name = "gazelle")
+
+# Anything below this line is automatically generated

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cmd",
+    srcs = [
+        "config.go",
+        "root.go",
+    ],
+    importpath = "github.com/abac/proxy/cmd/proxy/cmd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//internal/log",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_viper//:viper",
+    ],
+)

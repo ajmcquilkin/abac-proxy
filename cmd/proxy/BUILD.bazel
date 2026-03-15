@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "proxy_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/abac/proxy/cmd/proxy",
+    visibility = ["//visibility:public"],
+    deps = ["//cmd/proxy/cmd"],
+)
+
+go_binary(
+    name = "proxy",
+    embed = [":proxy_lib"],
+    visibility = ["//visibility:public"],
+)
