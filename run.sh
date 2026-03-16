@@ -13,6 +13,10 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
+echo "→ Running migrations..."
+DBMATE_MIGRATIONS_DIR="./infra/migrations" dbmate up
+
+echo ""
 echo "→ Seeding database..."
 psql "$DATABASE_URL" -f infra/seed.sql
 

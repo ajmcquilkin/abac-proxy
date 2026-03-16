@@ -12,14 +12,25 @@ import (
 
 type Querier interface {
 	ActivatePolicy(ctx context.Context, id pgtype.UUID) error
+	CreateDownstreamToken(ctx context.Context, arg CreateDownstreamTokenParams) (DownstreamToken, error)
 	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error)
+	CreateUpstreamCredential(ctx context.Context, arg CreateUpstreamCredentialParams) (UpstreamCredential, error)
 	CreateUser(ctx context.Context, email string) (User, error)
 	DeactivateUserPolicies(ctx context.Context, userID pgtype.UUID) error
-	GetActivePolicyByToken(ctx context.Context, token string) (Policy, error)
+	DeleteDownstreamToken(ctx context.Context, id pgtype.UUID) error
+	DeleteUpstreamCredential(ctx context.Context, id pgtype.UUID) error
 	GetActivePolicyForUser(ctx context.Context, userID pgtype.UUID) (Policy, error)
+	GetDownstreamTokenByHash(ctx context.Context, tokenHash string) (GetDownstreamTokenByHashRow, error)
+	GetUpstreamCredentialByID(ctx context.Context, id pgtype.UUID) (UpstreamCredential, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	ListActiveUpstreamCredentials(ctx context.Context, userID pgtype.UUID) ([]UpstreamCredential, error)
+	ListDownstreamTokensByPolicyID(ctx context.Context, policyID pgtype.UUID) ([]DownstreamToken, error)
 	ListPolicyVersions(ctx context.Context, userID pgtype.UUID) ([]Policy, error)
+	ListUpstreamCredentialsByUserID(ctx context.Context, userID pgtype.UUID) ([]UpstreamCredential, error)
+	RevokeDownstreamToken(ctx context.Context, id pgtype.UUID) error
+	UpdateDownstreamTokenLastUsed(ctx context.Context, id pgtype.UUID) error
+	UpdateUpstreamCredential(ctx context.Context, arg UpdateUpstreamCredentialParams) (UpstreamCredential, error)
 }
 
 var _ Querier = (*Queries)(nil)

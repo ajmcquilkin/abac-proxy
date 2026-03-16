@@ -21,25 +21,25 @@ func (q *Queries) ActivatePolicy(ctx context.Context, id pgtype.UUID) error {
 }
 
 const createPolicy = `-- name: CreatePolicy :one
-INSERT INTO policies (user_id, token, version, base_url, default_action, rules, is_active)
+INSERT INTO policies (user_id, upstream_credential_id, version, base_url, default_action, rules, is_active)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at
+RETURNING id, user_id, version, base_url, default_action, rules, is_active, created_at, updated_at, upstream_credential_id
 `
 
 type CreatePolicyParams struct {
-	UserID        pgtype.UUID `json:"user_id"`
-	Token         string      `json:"token"`
-	Version       string      `json:"version"`
-	BaseUrl       string      `json:"base_url"`
-	DefaultAction string      `json:"default_action"`
-	Rules         []byte      `json:"rules"`
-	IsActive      bool        `json:"is_active"`
+	UserID               pgtype.UUID `json:"user_id"`
+	UpstreamCredentialID pgtype.UUID `json:"upstream_credential_id"`
+	Version              string      `json:"version"`
+	BaseUrl              string      `json:"base_url"`
+	DefaultAction        string      `json:"default_action"`
+	Rules                []byte      `json:"rules"`
+	IsActive             bool        `json:"is_active"`
 }
 
 func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error) {
 	row := q.db.QueryRow(ctx, createPolicy,
 		arg.UserID,
-		arg.Token,
+		arg.UpstreamCredentialID,
 		arg.Version,
 		arg.BaseUrl,
 		arg.DefaultAction,
@@ -50,7 +50,6 @@ func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Pol
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Token,
 		&i.Version,
 		&i.BaseUrl,
 		&i.DefaultAction,
@@ -58,6 +57,7 @@ func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Pol
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpstreamCredentialID,
 	)
 	return i, err
 }
@@ -71,32 +71,8 @@ func (q *Queries) DeactivateUserPolicies(ctx context.Context, userID pgtype.UUID
 	return err
 }
 
-const getActivePolicyByToken = `-- name: GetActivePolicyByToken :one
-SELECT id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at FROM policies
-WHERE token = $1 AND is_active = TRUE
-LIMIT 1
-`
-
-func (q *Queries) GetActivePolicyByToken(ctx context.Context, token string) (Policy, error) {
-	row := q.db.QueryRow(ctx, getActivePolicyByToken, token)
-	var i Policy
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Token,
-		&i.Version,
-		&i.BaseUrl,
-		&i.DefaultAction,
-		&i.Rules,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getActivePolicyForUser = `-- name: GetActivePolicyForUser :one
-SELECT id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at FROM policies
+SELECT id, user_id, version, base_url, default_action, rules, is_active, created_at, updated_at, upstream_credential_id FROM policies
 WHERE user_id = $1 AND is_active = TRUE
 LIMIT 1
 `
@@ -107,7 +83,6 @@ func (q *Queries) GetActivePolicyForUser(ctx context.Context, userID pgtype.UUID
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Token,
 		&i.Version,
 		&i.BaseUrl,
 		&i.DefaultAction,
@@ -115,12 +90,13 @@ func (q *Queries) GetActivePolicyForUser(ctx context.Context, userID pgtype.UUID
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpstreamCredentialID,
 	)
 	return i, err
 }
 
 const listPolicyVersions = `-- name: ListPolicyVersions :many
-SELECT id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at FROM policies
+SELECT id, user_id, version, base_url, default_action, rules, is_active, created_at, updated_at, upstream_credential_id FROM policies
 WHERE user_id = $1
 ORDER BY created_at DESC
 `
@@ -137,7 +113,6 @@ func (q *Queries) ListPolicyVersions(ctx context.Context, userID pgtype.UUID) ([
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.Token,
 			&i.Version,
 			&i.BaseUrl,
 			&i.DefaultAction,
@@ -145,6 +120,7 @@ func (q *Queries) ListPolicyVersions(ctx context.Context, userID pgtype.UUID) ([
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UpstreamCredentialID,
 		); err != nil {
 			return nil, err
 		}

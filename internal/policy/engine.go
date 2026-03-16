@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/abac/proxy/internal/auth"
 	"github.com/abac/proxy/internal/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -32,9 +33,10 @@ type PolicyRule struct {
 }
 
 type PolicyEngine struct {
-	policy   *Policy
-	matcher  *PathMatcher
-	filterer *ResponseFilterer
+	policy        *Policy
+	matcher       *PathMatcher
+	filterer      *ResponseFilterer
+	upstreamToken string
 }
 
 func NewPolicyEngine(policyPath string) (*PolicyEngine, error) {
@@ -53,9 +55,10 @@ func NewPolicyEngine(policyPath string) (*PolicyEngine, error) {
 	}
 
 	return &PolicyEngine{
-		policy:   &policy,
-		matcher:  NewPathMatcher(),
-		filterer: NewResponseFilterer(),
+		policy:        &policy,
+		matcher:       NewPathMatcher(),
+		filterer:      NewResponseFilterer(),
+		upstreamToken: policy.User.Token,
 	}, nil
 }
 
@@ -75,8 +78,8 @@ func validatePolicy(p *Policy) error {
 	return nil
 }
 
-func (pe *PolicyEngine) ValidateToken(token string) bool {
-	return token == pe.policy.User.Token
+func (pe *PolicyEngine) GetUpstreamToken() string {
+	return pe.upstreamToken
 }
 
 func (pe *PolicyEngine) FindMatchingRule(path, method string) (*PolicyRule, bool) {
@@ -120,6 +123,12 @@ func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID str
 		return nil, fmt.Errorf("failed to get active policy: %w", err)
 	}
 
+	// Get upstream credential
+	upstreamCred, err := store.GetUpstreamCredentialByID(ctx, policyRow.UpstreamCredentialID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upstream credential: %w", err)
+	}
+
 	// Parse rules from JSONB
 	var rules []PolicyRule
 	if err := json.Unmarshal(policyRow.Rules, &rules); err != nil {
@@ -129,7 +138,7 @@ func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID str
 	// Construct policy from normalized columns
 	policy := Policy{
 		Version:       policyRow.Version,
-		User:          PolicyUser{Token: policyRow.Token, ID: userID},
+		User:          PolicyUser{Token: upstreamCred.Token, ID: userID},
 		BaseURL:       policyRow.BaseUrl,
 		Policies:      rules,
 		DefaultAction: policyRow.DefaultAction,
@@ -140,47 +149,66 @@ func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID str
 	}
 
 	return &PolicyEngine{
-		policy:   &policy,
-		matcher:  NewPathMatcher(),
-		filterer: NewResponseFilterer(),
+		policy:        &policy,
+		matcher:       NewPathMatcher(),
+		filterer:      NewResponseFilterer(),
+		upstreamToken: upstreamCred.Token,
 	}, nil
 }
 
-// NewPolicyEngineFromToken creates a PolicyEngine by looking up the active policy for the given token
-func NewPolicyEngineFromToken(ctx context.Context, store *storage.Store, token string) (*PolicyEngine, error) {
-	policyRow, err := store.GetActivePolicyByToken(ctx, token)
+// NewPolicyEngineFromDownstreamToken creates a PolicyEngine by looking up the downstream token
+func NewPolicyEngineFromDownstreamToken(ctx context.Context, store *storage.Store, token string) (*PolicyEngine, error) {
+	// Hash the client token
+	tokenHash, err := auth.HashToken(token)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash token: %w", err)
+	}
+
+	// Query with 3-way JOIN
+	result, err := store.GetDownstreamTokenByHash(ctx, tokenHash)
 	if err != nil {
 		if storage.IsNotFound(err) {
 			return nil, fmt.Errorf("no active policy found for token")
 		}
-		return nil, fmt.Errorf("failed to get active policy: %w", err)
+		return nil, fmt.Errorf("failed to get policy by token: %w", err)
+	}
+
+	// Validate token hash
+	if !auth.ValidateToken(token, result.TokenHash) {
+		return nil, fmt.Errorf("invalid token")
 	}
 
 	// Parse rules from JSONB
 	var rules []PolicyRule
-	if err := json.Unmarshal(policyRow.Rules, &rules); err != nil {
+	if err := json.Unmarshal(result.Policy.Rules, &rules); err != nil {
 		return nil, fmt.Errorf("failed to parse policy rules from database: %w", err)
 	}
 
 	// Convert UUID to string for user ID
-	userID := uuid.UUID(policyRow.UserID.Bytes).String()
+	userID := uuid.UUID(result.Policy.UserID.Bytes).String()
 
 	// Construct policy from normalized columns
 	policy := Policy{
-		Version:       policyRow.Version,
-		User:          PolicyUser{Token: policyRow.Token, ID: userID},
-		BaseURL:       policyRow.BaseUrl,
+		Version:       result.Policy.Version,
+		User:          PolicyUser{Token: result.UpstreamCredential.Token, ID: userID},
+		BaseURL:       result.Policy.BaseUrl,
 		Policies:      rules,
-		DefaultAction: policyRow.DefaultAction,
+		DefaultAction: result.Policy.DefaultAction,
 	}
 
 	if err := validatePolicy(&policy); err != nil {
 		return nil, fmt.Errorf("invalid policy from database: %w", err)
 	}
 
+	// Update last_used_at asynchronously
+	go func() {
+		_ = store.UpdateDownstreamTokenLastUsed(context.Background(), result.ID)
+	}()
+
 	return &PolicyEngine{
-		policy:   &policy,
-		matcher:  NewPathMatcher(),
-		filterer: NewResponseFilterer(),
+		policy:        &policy,
+		matcher:       NewPathMatcher(),
+		filterer:      NewResponseFilterer(),
+		upstreamToken: result.UpstreamCredential.Token,
 	}, nil
 }

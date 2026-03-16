@@ -64,9 +64,9 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 
 	token := extractToken(req)
 
-	engine, err := a.getEngine(req.Context(), token)
+	_, err := a.getEngine(req.Context(), token)
 	if err != nil {
-		logger.Errorw("failed to load policy",
+		logger.Errorw("failed to load policy or invalid token",
 			"error", err,
 		)
 		ctx := context.WithValue(req.Context(), contextKeyTokenValid, false)
@@ -75,21 +75,13 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 		return req.WithContext(ctx)
 	}
 
-	tokenValid := engine.ValidateToken(token)
+	// Token is valid if we successfully loaded the engine
+	logger.Infow("token validated",
+		"path", req.URL.Path,
+		"method", req.Method,
+	)
 
-	if !tokenValid {
-		logger.Warnw("invalid or missing token",
-			"path", req.URL.Path,
-			"method", req.Method,
-		)
-	} else {
-		logger.Infow("token validated",
-			"path", req.URL.Path,
-			"method", req.Method,
-		)
-	}
-
-	ctx := context.WithValue(req.Context(), contextKeyTokenValid, tokenValid)
+	ctx := context.WithValue(req.Context(), contextKeyTokenValid, true)
 	ctx = context.WithValue(ctx, contextKeyRequestPath, req.URL.Path)
 	ctx = context.WithValue(ctx, contextKeyRequestMethod, req.Method)
 

@@ -8,17 +8,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type DownstreamToken struct {
+	ID         pgtype.UUID        `json:"id"`
+	PolicyID   pgtype.UUID        `json:"policy_id"`
+	TokenHash  string             `json:"token_hash"`
+	Name       string             `json:"name"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+	Revoked    bool               `json:"revoked"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Policy struct {
-	ID            pgtype.UUID        `json:"id"`
-	UserID        pgtype.UUID        `json:"user_id"`
-	Token         string             `json:"token"`
-	Version       string             `json:"version"`
-	BaseUrl       string             `json:"base_url"`
-	DefaultAction string             `json:"default_action"`
-	Rules         []byte             `json:"rules"`
-	IsActive      bool               `json:"is_active"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	ID                   pgtype.UUID        `json:"id"`
+	UserID               pgtype.UUID        `json:"user_id"`
+	Version              string             `json:"version"`
+	BaseUrl              string             `json:"base_url"`
+	DefaultAction        string             `json:"default_action"`
+	Rules                []byte             `json:"rules"`
+	IsActive             bool               `json:"is_active"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	UpstreamCredentialID pgtype.UUID        `json:"upstream_credential_id"`
+}
+
+type UpstreamCredential struct {
+	ID          pgtype.UUID        `json:"id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	Name        string             `json:"name"`
+	Token       string             `json:"token"`
+	ApiEndpoint *string            `json:"api_endpoint"`
+	TokenType   *string            `json:"token_type"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 type User struct {

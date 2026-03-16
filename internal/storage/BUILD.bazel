@@ -4,10 +4,12 @@ go_library(
     name = "storage",
     srcs = [
         "db.go",
+        "downstream_tokens.sql.go",
         "models.go",
         "policies.sql.go",
         "querier.go",
         "store.go",
+        "upstream_credentials.sql.go",
         "users.sql.go",
     ],
     importpath = "github.com/abac/proxy/internal/storage",
