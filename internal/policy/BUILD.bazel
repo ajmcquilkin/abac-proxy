@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "policy",
     srcs = [
+        "cache.go",
         "engine.go",
         "filter.go",
         "matcher.go",
