@@ -15,6 +15,7 @@ type Querier interface {
 	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error)
 	CreateUser(ctx context.Context, email string) (User, error)
 	DeactivateUserPolicies(ctx context.Context, userID pgtype.UUID) error
+	GetActivePolicyByToken(ctx context.Context, token string) (Policy, error)
 	GetActivePolicyForUser(ctx context.Context, userID pgtype.UUID) (Policy, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)

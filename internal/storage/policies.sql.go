@@ -71,6 +71,30 @@ func (q *Queries) DeactivateUserPolicies(ctx context.Context, userID pgtype.UUID
 	return err
 }
 
+const getActivePolicyByToken = `-- name: GetActivePolicyByToken :one
+SELECT id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at FROM policies
+WHERE token = $1 AND is_active = TRUE
+LIMIT 1
+`
+
+func (q *Queries) GetActivePolicyByToken(ctx context.Context, token string) (Policy, error) {
+	row := q.db.QueryRow(ctx, getActivePolicyByToken, token)
+	var i Policy
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Token,
+		&i.Version,
+		&i.BaseUrl,
+		&i.DefaultAction,
+		&i.Rules,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getActivePolicyForUser = `-- name: GetActivePolicyForUser :one
 SELECT id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at FROM policies
 WHERE user_id = $1 AND is_active = TRUE

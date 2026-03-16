@@ -43,7 +43,6 @@ func NewABACInterceptor(policyPath string) (*ABACInterceptor, error) {
 }
 
 // NewABACInterceptorFromDB creates an ABAC interceptor from database storage with caching
-// TODO: Currently uses a hardcoded user ID - should extract from token in request
 func NewABACInterceptorFromDB(ctx context.Context, databaseURL string) (*ABACInterceptor, error) {
 	pool, err := storage.NewPool(ctx, databaseURL)
 	if err != nil {
@@ -52,12 +51,8 @@ func NewABACInterceptorFromDB(ctx context.Context, databaseURL string) (*ABACInt
 
 	store := storage.NewStore(pool)
 
-	// TODO: Extract user ID from request context/token
-	// For now, using a placeholder - this needs to be dynamic
-	userID := "00000000-0000-0000-0000-000000000000"
-
 	// Create policy cache with 15 second TTL
-	cache := policy.NewPolicyCache(store, userID, 15*time.Second)
+	cache := policy.NewPolicyCache(store, 15*time.Second)
 
 	return &ABACInterceptor{
 		cache: cache,
@@ -67,7 +62,9 @@ func NewABACInterceptorFromDB(ctx context.Context, databaseURL string) (*ABACInt
 func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 	logger := log.From(req.Context())
 
-	engine, err := a.getEngine(req.Context())
+	token := extractToken(req)
+
+	engine, err := a.getEngine(req.Context(), token)
 	if err != nil {
 		logger.Errorw("failed to load policy",
 			"error", err,
@@ -78,7 +75,6 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 		return req.WithContext(ctx)
 	}
 
-	token := extractToken(req)
 	tokenValid := engine.ValidateToken(token)
 
 	if !tokenValid {
@@ -116,7 +112,9 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 		return nil
 	}
 
-	engine, err := a.getEngine(resp.Request.Context())
+	token := extractToken(resp.Request)
+
+	engine, err := a.getEngine(resp.Request.Context(), token)
 	if err != nil {
 		logger.Errorw("failed to load policy",
 			"path", path,
@@ -221,7 +219,7 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 }
 
 // getEngine returns the policy engine, either from static file or cached from DB
-func (a *ABACInterceptor) getEngine(ctx context.Context) (*policy.PolicyEngine, error) {
+func (a *ABACInterceptor) getEngine(ctx context.Context, token string) (*policy.PolicyEngine, error) {
 	// File-based policy (static)
 	if a.engine != nil {
 		return a.engine, nil
@@ -229,7 +227,10 @@ func (a *ABACInterceptor) getEngine(ctx context.Context) (*policy.PolicyEngine, 
 
 	// Database-based policy (cached with TTL)
 	if a.cache != nil {
-		return a.cache.Get(ctx)
+		if token == "" {
+			return nil, fmt.Errorf("token required for database-backed policy")
+		}
+		return a.cache.GetByToken(ctx, token)
 	}
 
 	return nil, fmt.Errorf("no policy engine configured")

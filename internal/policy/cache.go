@@ -9,27 +9,30 @@ import (
 )
 
 type PolicyCache struct {
-	store  *storage.Store
-	userID string
-	ttl    time.Duration
+	store *storage.Store
+	ttl   time.Duration
 
 	mu       sync.RWMutex
+	engines  map[string]*cachedEngine
+}
+
+type cachedEngine struct {
 	engine   *PolicyEngine
 	loadedAt time.Time
 }
 
-func NewPolicyCache(store *storage.Store, userID string, ttl time.Duration) *PolicyCache {
+func NewPolicyCache(store *storage.Store, ttl time.Duration) *PolicyCache {
 	return &PolicyCache{
-		store:  store,
-		userID: userID,
-		ttl:    ttl,
+		store:   store,
+		ttl:     ttl,
+		engines: make(map[string]*cachedEngine),
 	}
 }
 
-func (pc *PolicyCache) Get(ctx context.Context) (*PolicyEngine, error) {
+func (pc *PolicyCache) GetByToken(ctx context.Context, token string) (*PolicyEngine, error) {
 	pc.mu.RLock()
-	if pc.engine != nil && time.Since(pc.loadedAt) < pc.ttl {
-		engine := pc.engine
+	if cached, exists := pc.engines[token]; exists && time.Since(cached.loadedAt) < pc.ttl {
+		engine := cached.engine
 		pc.mu.RUnlock()
 		return engine, nil
 	}
@@ -39,24 +42,32 @@ func (pc *PolicyCache) Get(ctx context.Context) (*PolicyEngine, error) {
 	defer pc.mu.Unlock()
 
 	// Double-check after acquiring write lock
-	if pc.engine != nil && time.Since(pc.loadedAt) < pc.ttl {
-		return pc.engine, nil
+	if cached, exists := pc.engines[token]; exists && time.Since(cached.loadedAt) < pc.ttl {
+		return cached.engine, nil
 	}
 
 	// Load fresh policy from database
-	engine, err := NewPolicyEngineFromDB(ctx, pc.store, pc.userID)
+	engine, err := NewPolicyEngineFromToken(ctx, pc.store, token)
 	if err != nil {
 		return nil, err
 	}
 
-	pc.engine = engine
-	pc.loadedAt = time.Now()
+	pc.engines[token] = &cachedEngine{
+		engine:   engine,
+		loadedAt: time.Now(),
+	}
 
 	return engine, nil
 }
 
-func (pc *PolicyCache) Invalidate() {
+func (pc *PolicyCache) Invalidate(token string) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
-	pc.engine = nil
+	delete(pc.engines, token)
+}
+
+func (pc *PolicyCache) InvalidateAll() {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	pc.engines = make(map[string]*cachedEngine)
 }
