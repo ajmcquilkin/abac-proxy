@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "abac_interceptor.go",
         "allowlist.go",
-        "examples.go",
         "interceptor.go",
         "proxy.go",
     ],
@@ -15,6 +14,5 @@ go_library(
         "//internal/log",
         "//internal/policy",
         "//internal/storage",
-        "@org_uber_go_zap//:zap",
     ],
 )

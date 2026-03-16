@@ -22,25 +22,6 @@ func (p *PassthroughInterceptor) InterceptResponse(resp *http.Response) error {
 	return nil
 }
 
-type ModifyingInterceptor struct {
-	OnRequest  func(*http.Request) *http.Request
-	OnResponse func(*http.Response) error
-}
-
-func (m *ModifyingInterceptor) InterceptRequest(req *http.Request) *http.Request {
-	if m.OnRequest != nil {
-		return m.OnRequest(req)
-	}
-	return req
-}
-
-func (m *ModifyingInterceptor) InterceptResponse(resp *http.Response) error {
-	if m.OnResponse != nil {
-		return m.OnResponse(resp)
-	}
-	return nil
-}
-
 func ReadAndReplaceBody(resp *http.Response, modifier func([]byte) ([]byte, error)) error {
 	if resp.Body == nil {
 		return nil
