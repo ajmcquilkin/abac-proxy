@@ -4,8 +4,8 @@ WHERE user_id = $1 AND is_active = TRUE
 LIMIT 1;
 
 -- name: CreatePolicy :one
-INSERT INTO policies (user_id, version, content, is_active)
-VALUES ($1, $2, $3, $4)
+INSERT INTO policies (user_id, token, version, base_url, default_action, rules, is_active)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: DeactivateUserPolicies :exec

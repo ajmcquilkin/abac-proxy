@@ -9,59 +9,21 @@ import (
 )
 
 type Policy struct {
-	ID        pgtype.UUID        `json:"id"`
-	UserID    pgtype.UUID        `json:"user_id"`
-	Version   string             `json:"version"`
-	Content   []byte             `json:"content"`
-	IsActive  bool               `json:"is_active"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
-type PolicyRule struct {
-	ID             pgtype.UUID `json:"id"`
-	PolicyID       pgtype.UUID `json:"policy_id"`
-	Route          string      `json:"route"`
-	Method         string      `json:"method"`
-	Action         string      `json:"action"`
-	ResponseFilter []byte      `json:"response_filter"`
-	Priority       int32       `json:"priority"`
-}
-
-type RateLimit struct {
-	ID            pgtype.UUID `json:"id"`
-	TokenID       pgtype.UUID `json:"token_id"`
-	Endpoint      string      `json:"endpoint"`
-	LimitType     string      `json:"limit_type"`
-	RequestsLimit int32       `json:"requests_limit"`
-	WindowSeconds int32       `json:"window_seconds"`
-}
-
-type Token struct {
-	ID         pgtype.UUID        `json:"id"`
-	UserID     pgtype.UUID        `json:"user_id"`
-	Jti        string             `json:"jti"`
-	TokenHash  string             `json:"token_hash"`
-	Scopes     []string           `json:"scopes"`
-	IssuedAt   pgtype.Timestamptz `json:"issued_at"`
-	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
-	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
-	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
-}
-
-type TokenUsage struct {
 	ID            pgtype.UUID        `json:"id"`
-	TokenID       pgtype.UUID        `json:"token_id"`
-	Endpoint      string             `json:"endpoint"`
-	WindowStart   pgtype.Timestamptz `json:"window_start"`
-	RequestCount  int32              `json:"request_count"`
-	LastRequestAt pgtype.Timestamptz `json:"last_request_at"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Token         string             `json:"token"`
+	Version       string             `json:"version"`
+	BaseUrl       string             `json:"base_url"`
+	DefaultAction string             `json:"default_action"`
+	Rules         []byte             `json:"rules"`
+	IsActive      bool               `json:"is_active"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
 type User struct {
 	ID        pgtype.UUID        `json:"id"`
 	Email     string             `json:"email"`
-	Role      string             `json:"role"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

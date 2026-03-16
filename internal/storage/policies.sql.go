@@ -21,31 +21,40 @@ func (q *Queries) ActivatePolicy(ctx context.Context, id pgtype.UUID) error {
 }
 
 const createPolicy = `-- name: CreatePolicy :one
-INSERT INTO policies (user_id, version, content, is_active)
-VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, version, content, is_active, created_at, updated_at
+INSERT INTO policies (user_id, token, version, base_url, default_action, rules, is_active)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at
 `
 
 type CreatePolicyParams struct {
-	UserID   pgtype.UUID `json:"user_id"`
-	Version  string      `json:"version"`
-	Content  []byte      `json:"content"`
-	IsActive bool        `json:"is_active"`
+	UserID        pgtype.UUID `json:"user_id"`
+	Token         string      `json:"token"`
+	Version       string      `json:"version"`
+	BaseUrl       string      `json:"base_url"`
+	DefaultAction string      `json:"default_action"`
+	Rules         []byte      `json:"rules"`
+	IsActive      bool        `json:"is_active"`
 }
 
 func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error) {
 	row := q.db.QueryRow(ctx, createPolicy,
 		arg.UserID,
+		arg.Token,
 		arg.Version,
-		arg.Content,
+		arg.BaseUrl,
+		arg.DefaultAction,
+		arg.Rules,
 		arg.IsActive,
 	)
 	var i Policy
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.Token,
 		&i.Version,
-		&i.Content,
+		&i.BaseUrl,
+		&i.DefaultAction,
+		&i.Rules,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -63,7 +72,7 @@ func (q *Queries) DeactivateUserPolicies(ctx context.Context, userID pgtype.UUID
 }
 
 const getActivePolicyForUser = `-- name: GetActivePolicyForUser :one
-SELECT id, user_id, version, content, is_active, created_at, updated_at FROM policies
+SELECT id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at FROM policies
 WHERE user_id = $1 AND is_active = TRUE
 LIMIT 1
 `
@@ -74,8 +83,11 @@ func (q *Queries) GetActivePolicyForUser(ctx context.Context, userID pgtype.UUID
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.Token,
 		&i.Version,
-		&i.Content,
+		&i.BaseUrl,
+		&i.DefaultAction,
+		&i.Rules,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -84,7 +96,7 @@ func (q *Queries) GetActivePolicyForUser(ctx context.Context, userID pgtype.UUID
 }
 
 const listPolicyVersions = `-- name: ListPolicyVersions :many
-SELECT id, user_id, version, content, is_active, created_at, updated_at FROM policies
+SELECT id, user_id, token, version, base_url, default_action, rules, is_active, created_at, updated_at FROM policies
 WHERE user_id = $1
 ORDER BY created_at DESC
 `
@@ -101,8 +113,11 @@ func (q *Queries) ListPolicyVersions(ctx context.Context, userID pgtype.UUID) ([
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
+			&i.Token,
 			&i.Version,
-			&i.Content,
+			&i.BaseUrl,
+			&i.DefaultAction,
+			&i.Rules,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,

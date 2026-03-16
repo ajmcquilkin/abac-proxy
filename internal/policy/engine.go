@@ -120,9 +120,19 @@ func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID str
 		return nil, fmt.Errorf("failed to get active policy: %w", err)
 	}
 
-	var policy Policy
-	if err := json.Unmarshal(policyRow.Content, &policy); err != nil {
-		return nil, fmt.Errorf("failed to parse policy JSON from database: %w", err)
+	// Parse rules from JSONB
+	var rules []PolicyRule
+	if err := json.Unmarshal(policyRow.Rules, &rules); err != nil {
+		return nil, fmt.Errorf("failed to parse policy rules from database: %w", err)
+	}
+
+	// Construct policy from normalized columns
+	policy := Policy{
+		Version:       policyRow.Version,
+		User:          PolicyUser{Token: policyRow.Token, ID: userID},
+		BaseURL:       policyRow.BaseUrl,
+		Policies:      rules,
+		DefaultAction: policyRow.DefaultAction,
 	}
 
 	if err := validatePolicy(&policy); err != nil {
