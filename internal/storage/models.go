@@ -34,15 +34,16 @@ type Policy struct {
 }
 
 type UpstreamCredential struct {
-	ID          pgtype.UUID        `json:"id"`
-	UserID      pgtype.UUID        `json:"user_id"`
-	Name        string             `json:"name"`
-	Token       string             `json:"token"`
-	ApiEndpoint *string            `json:"api_endpoint"`
-	TokenType   *string            `json:"token_type"`
-	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID           pgtype.UUID        `json:"id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	Name         string             `json:"name"`
+	Token        string             `json:"token"`
+	ApiEndpoint  *string            `json:"api_endpoint"`
+	TokenType    *string            `json:"token_type"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	HeaderString *string            `json:"header_string"`
 }
 
 type User struct {

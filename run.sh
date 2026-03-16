@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Usage: ./run.sh [--migrate] [--seed]
+#   --migrate: Run database migrations
+#   --seed: Reset and seed the database with test data
+
 # Load .env
 if [ -f .env ]; then
   set -a
@@ -13,14 +17,20 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
-echo "→ Running migrations..."
-DBMATE_MIGRATIONS_DIR="./infra/migrations" dbmate up
+# Only run migrations if --migrate flag is provided
+if [[ "$*" == *"--migrate"* ]]; then
+  echo "→ Running migrations..."
+  DBMATE_MIGRATIONS_DIR="./infra/migrations" dbmate up
+  echo ""
+fi
 
-echo ""
-echo "→ Seeding database..."
-psql "$DATABASE_URL" -f infra/seed.sql
+# Only seed if --seed flag is provided
+if [[ "$*" == *"--seed"* ]]; then
+  echo "→ Seeding database..."
+  psql "$DATABASE_URL" -f infra/seed.sql
+  echo ""
+fi
 
-echo ""
 echo "→ Starting proxy..."
 echo "  Port: 8080"
 echo "  Policy store: database"

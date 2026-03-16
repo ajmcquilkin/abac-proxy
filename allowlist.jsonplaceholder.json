@@ -3,6 +3,10 @@
     {
       "host": "jsonplaceholder.typicode.com",
       "scheme": "https"
+    },
+    {
+      "host": "api.browserbase.com",
+      "scheme": "https"
     }
   ]
 }

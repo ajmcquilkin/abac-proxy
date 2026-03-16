@@ -18,9 +18,13 @@ import (
 type contextKey string
 
 const (
-	contextKeyTokenValid    contextKey = "abac_token_valid"
-	contextKeyRequestPath   contextKey = "abac_request_path"
-	contextKeyRequestMethod contextKey = "abac_request_method"
+	contextKeyTokenValid      contextKey = "abac_token_valid"
+	contextKeyRequestPath     contextKey = "abac_request_path"
+	contextKeyRequestMethod   contextKey = "abac_request_method"
+	contextKeyUpstreamToken   contextKey = "abac_upstream_token"
+	contextKeyUpstreamType    contextKey = "abac_upstream_type"
+	contextKeyUpstreamHeader  contextKey = "abac_upstream_header"
+	contextKeyPolicyEngine    contextKey = "abac_policy_engine"
 )
 
 type ABACInterceptor struct {
@@ -64,7 +68,7 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 
 	token := extractToken(req)
 
-	_, err := a.getEngine(req.Context(), token)
+	engine, err := a.getEngine(req.Context(), token)
 	if err != nil {
 		logger.Errorw("failed to load policy or invalid token",
 			"error", err,
@@ -84,6 +88,10 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 	ctx := context.WithValue(req.Context(), contextKeyTokenValid, true)
 	ctx = context.WithValue(ctx, contextKeyRequestPath, req.URL.Path)
 	ctx = context.WithValue(ctx, contextKeyRequestMethod, req.Method)
+	ctx = context.WithValue(ctx, contextKeyUpstreamToken, engine.GetUpstreamToken())
+	ctx = context.WithValue(ctx, contextKeyUpstreamType, engine.GetUpstreamTokenType())
+	ctx = context.WithValue(ctx, contextKeyUpstreamHeader, engine.GetUpstreamHeaderString())
+	ctx = context.WithValue(ctx, contextKeyPolicyEngine, engine)
 
 	return req.WithContext(ctx)
 }
@@ -104,13 +112,11 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 		return nil
 	}
 
-	token := extractToken(resp.Request)
-
-	engine, err := a.getEngine(resp.Request.Context(), token)
-	if err != nil {
-		logger.Errorw("failed to load policy",
+	// Get engine from context (stored in InterceptRequest)
+	engine, ok := resp.Request.Context().Value(contextKeyPolicyEngine).(*policy.PolicyEngine)
+	if !ok {
+		logger.Errorw("policy engine not found in context",
 			"path", path,
-			"error", err,
 		)
 		replaceWithError(resp, http.StatusInternalServerError, "policy engine error")
 		return nil

@@ -33,10 +33,12 @@ type PolicyRule struct {
 }
 
 type PolicyEngine struct {
-	policy        *Policy
-	matcher       *PathMatcher
-	filterer      *ResponseFilterer
-	upstreamToken string
+	policy             *Policy
+	matcher            *PathMatcher
+	filterer           *ResponseFilterer
+	upstreamToken      string
+	upstreamTokenType  *string
+	upstreamHeaderString *string
 }
 
 func NewPolicyEngine(policyPath string) (*PolicyEngine, error) {
@@ -54,11 +56,15 @@ func NewPolicyEngine(policyPath string) (*PolicyEngine, error) {
 		return nil, fmt.Errorf("invalid policy: %w", err)
 	}
 
+	// File-based policies use bearer auth by default
+	bearerType := "bearer"
 	return &PolicyEngine{
-		policy:        &policy,
-		matcher:       NewPathMatcher(),
-		filterer:      NewResponseFilterer(),
-		upstreamToken: policy.User.Token,
+		policy:               &policy,
+		matcher:              NewPathMatcher(),
+		filterer:             NewResponseFilterer(),
+		upstreamToken:        policy.User.Token,
+		upstreamTokenType:    &bearerType,
+		upstreamHeaderString: nil,
 	}, nil
 }
 
@@ -80,6 +86,14 @@ func validatePolicy(p *Policy) error {
 
 func (pe *PolicyEngine) GetUpstreamToken() string {
 	return pe.upstreamToken
+}
+
+func (pe *PolicyEngine) GetUpstreamTokenType() *string {
+	return pe.upstreamTokenType
+}
+
+func (pe *PolicyEngine) GetUpstreamHeaderString() *string {
+	return pe.upstreamHeaderString
 }
 
 func (pe *PolicyEngine) FindMatchingRule(path, method string) (*PolicyRule, bool) {
@@ -149,10 +163,12 @@ func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID str
 	}
 
 	return &PolicyEngine{
-		policy:        &policy,
-		matcher:       NewPathMatcher(),
-		filterer:      NewResponseFilterer(),
-		upstreamToken: upstreamCred.Token,
+		policy:               &policy,
+		matcher:              NewPathMatcher(),
+		filterer:             NewResponseFilterer(),
+		upstreamToken:        upstreamCred.Token,
+		upstreamTokenType:    upstreamCred.TokenType,
+		upstreamHeaderString: upstreamCred.HeaderString,
 	}, nil
 }
 
@@ -206,9 +222,11 @@ func NewPolicyEngineFromDownstreamToken(ctx context.Context, store *storage.Stor
 	}()
 
 	return &PolicyEngine{
-		policy:        &policy,
-		matcher:       NewPathMatcher(),
-		filterer:      NewResponseFilterer(),
-		upstreamToken: result.UpstreamCredential.Token,
+		policy:               &policy,
+		matcher:              NewPathMatcher(),
+		filterer:             NewResponseFilterer(),
+		upstreamToken:        result.UpstreamCredential.Token,
+		upstreamTokenType:    result.UpstreamCredential.TokenType,
+		upstreamHeaderString: result.UpstreamCredential.HeaderString,
 	}, nil
 }

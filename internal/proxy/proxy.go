@@ -34,11 +34,48 @@ func NewServer(allowlistPath string, interceptor Interceptor) (*Server, error) {
 	s.proxy = &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetXForwarded()
+			s.setUpstreamAuth(r)
 		},
 		ModifyResponse: s.modifyResponse,
 	}
 
 	return s, nil
+}
+
+func (s *Server) setUpstreamAuth(r *httputil.ProxyRequest) {
+	ctx := r.In.Context()
+	logger := log.From(ctx)
+
+	token, ok := ctx.Value(contextKey("abac_upstream_token")).(string)
+	if !ok || token == "" {
+		logger.Debugw("no upstream token in context")
+		return
+	}
+
+	tokenType, _ := ctx.Value(contextKey("abac_upstream_type")).(*string)
+	headerString, _ := ctx.Value(contextKey("abac_upstream_header")).(*string)
+
+	// Default to bearer if not specified
+	if tokenType == nil {
+		bearer := "bearer"
+		tokenType = &bearer
+	}
+
+	// Remove client's Authorization header to avoid conflicts
+	r.Out.Header.Del("Authorization")
+
+	if *tokenType == "custom" && headerString != nil && *headerString != "" {
+		// Use custom header
+		logger.Infow("setting custom upstream auth header",
+			"header", *headerString,
+			"token_preview", token[:20]+"...")
+		r.Out.Header.Set(*headerString, token)
+	} else {
+		// Use Authorization: Bearer
+		logger.Infow("setting bearer upstream auth",
+			"token_preview", token[:20]+"...")
+		r.Out.Header.Set("Authorization", "Bearer "+token)
+	}
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

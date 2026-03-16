@@ -66,7 +66,7 @@ const getDownstreamTokenByHash = `-- name: GetDownstreamTokenByHash :one
 SELECT
     dt.id, dt.policy_id, dt.token_hash, dt.name, dt.expires_at, dt.last_used_at, dt.revoked, dt.created_at, dt.updated_at,
     p.id, p.user_id, p.version, p.base_url, p.default_action, p.rules, p.is_active, p.created_at, p.updated_at, p.upstream_credential_id,
-    uc.id, uc.user_id, uc.name, uc.token, uc.api_endpoint, uc.token_type, uc.expires_at, uc.created_at, uc.updated_at
+    uc.id, uc.user_id, uc.name, uc.token, uc.api_endpoint, uc.token_type, uc.expires_at, uc.created_at, uc.updated_at, uc.header_string
 FROM downstream_tokens dt
 JOIN policies p ON p.id = dt.policy_id
 JOIN upstream_credentials uc ON uc.id = p.upstream_credential_id
@@ -123,6 +123,7 @@ func (q *Queries) GetDownstreamTokenByHash(ctx context.Context, tokenHash string
 		&i.UpstreamCredential.ExpiresAt,
 		&i.UpstreamCredential.CreatedAt,
 		&i.UpstreamCredential.UpdatedAt,
+		&i.UpstreamCredential.HeaderString,
 	)
 	return i, err
 }

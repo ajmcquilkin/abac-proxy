@@ -1,4 +1,4 @@
-\restrict m79VdfRrEVLg0LcBXtbC9IZ68FH92hDZwRQmdUeTRX2NRVr8aanAVwN6fLXGpdS
+\restrict Ir5mBmGbK2l41JYUTf7gtVFS48BCcg5fhSp5EwN8irW7ylagLk9OXv0mcZcJwYT
 
 -- Dumped from database version 17.8 (6108b59)
 -- Dumped by pg_dump version 18.3 (Homebrew)
@@ -104,7 +104,8 @@ CREATE TABLE public.upstream_credentials (
     token_type character varying(50) DEFAULT 'bearer'::character varying,
     expires_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    header_string text
 );
 
 
@@ -206,13 +207,6 @@ CREATE INDEX idx_policies_is_active ON public.policies USING btree (is_active);
 
 
 --
--- Name: idx_policies_user_active; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_policies_user_active ON public.policies USING btree (user_id) WHERE (is_active = true);
-
-
---
 -- Name: idx_policies_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -276,7 +270,7 @@ ALTER TABLE ONLY public.upstream_credentials
 -- PostgreSQL database dump complete
 --
 
-\unrestrict m79VdfRrEVLg0LcBXtbC9IZ68FH92hDZwRQmdUeTRX2NRVr8aanAVwN6fLXGpdS
+\unrestrict Ir5mBmGbK2l41JYUTf7gtVFS48BCcg5fhSp5EwN8irW7ylagLk9OXv0mcZcJwYT
 
 
 --
@@ -286,4 +280,6 @@ ALTER TABLE ONLY public.upstream_credentials
 INSERT INTO public.schema_migrations (version) VALUES
     ('20260315000001'),
     ('20260316000001'),
-    ('20260316000002');
+    ('20260316000002'),
+    ('20260316000003'),
+    ('20260316000004');

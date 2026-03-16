@@ -22,7 +22,7 @@ INSERT INTO upstream_credentials (
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
-RETURNING id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at
+RETURNING id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at, header_string
 `
 
 type CreateUpstreamCredentialParams struct {
@@ -54,6 +54,7 @@ func (q *Queries) CreateUpstreamCredential(ctx context.Context, arg CreateUpstre
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.HeaderString,
 	)
 	return i, err
 }
@@ -69,7 +70,7 @@ func (q *Queries) DeleteUpstreamCredential(ctx context.Context, id pgtype.UUID) 
 }
 
 const getUpstreamCredentialByID = `-- name: GetUpstreamCredentialByID :one
-SELECT id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at FROM upstream_credentials
+SELECT id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at, header_string FROM upstream_credentials
 WHERE id = $1
 `
 
@@ -86,12 +87,13 @@ func (q *Queries) GetUpstreamCredentialByID(ctx context.Context, id pgtype.UUID)
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.HeaderString,
 	)
 	return i, err
 }
 
 const listActiveUpstreamCredentials = `-- name: ListActiveUpstreamCredentials :many
-SELECT id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at FROM upstream_credentials
+SELECT id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at, header_string FROM upstream_credentials
 WHERE user_id = $1
   AND (expires_at IS NULL OR expires_at > NOW())
 ORDER BY created_at DESC
@@ -116,6 +118,7 @@ func (q *Queries) ListActiveUpstreamCredentials(ctx context.Context, userID pgty
 			&i.ExpiresAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.HeaderString,
 		); err != nil {
 			return nil, err
 		}
@@ -128,7 +131,7 @@ func (q *Queries) ListActiveUpstreamCredentials(ctx context.Context, userID pgty
 }
 
 const listUpstreamCredentialsByUserID = `-- name: ListUpstreamCredentialsByUserID :many
-SELECT id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at FROM upstream_credentials
+SELECT id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at, header_string FROM upstream_credentials
 WHERE user_id = $1
 ORDER BY created_at DESC
 `
@@ -152,6 +155,7 @@ func (q *Queries) ListUpstreamCredentialsByUserID(ctx context.Context, userID pg
 			&i.ExpiresAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.HeaderString,
 		); err != nil {
 			return nil, err
 		}
@@ -173,7 +177,7 @@ SET
     expires_at = COALESCE($6, expires_at),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at
+RETURNING id, user_id, name, token, api_endpoint, token_type, expires_at, created_at, updated_at, header_string
 `
 
 type UpdateUpstreamCredentialParams struct {
@@ -205,6 +209,7 @@ func (q *Queries) UpdateUpstreamCredential(ctx context.Context, arg UpdateUpstre
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.HeaderString,
 	)
 	return i, err
 }
