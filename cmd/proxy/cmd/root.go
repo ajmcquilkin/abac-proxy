@@ -29,11 +29,17 @@ func NewRootCommand() *cobra.Command {
 	flags.Int("port", 8080, "HTTP proxy listen port")
 	flags.String("allowlist", "", "Path to allowlist JSON file")
 	flags.String("policy", "", "Path to ABAC policy JSON file")
+	flags.String("policy-store-type", "file", "Policy store type: 'file' or 'db'")
+	flags.String("database-url", "", "Database connection URL (required when policy-store-type is 'db')")
 
 	_ = v.BindPFlags(flags)
+	_ = v.BindPFlag("policy_store_type", flags.Lookup("policy-store-type"))
+	_ = v.BindPFlag("database_url", flags.Lookup("database-url"))
 	_ = v.BindEnv("port", "PROXY_PORT")
 	_ = v.BindEnv("allowlist", "PROXY_ALLOWLIST")
 	_ = v.BindEnv("policy", "PROXY_POLICY")
+	_ = v.BindEnv("policy_store_type", "POLICY_STORE_TYPE")
+	_ = v.BindEnv("database_url", "DATABASE_URL")
 
 	return rootCmd
 }

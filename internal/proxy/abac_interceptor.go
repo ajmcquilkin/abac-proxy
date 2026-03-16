@@ -11,6 +11,7 @@ import (
 
 	"github.com/abac/proxy/internal/log"
 	"github.com/abac/proxy/internal/policy"
+	"github.com/abac/proxy/internal/storage"
 )
 
 type contextKey string
@@ -29,6 +30,30 @@ func NewABACInterceptor(policyPath string) (*ABACInterceptor, error) {
 	engine, err := policy.NewPolicyEngine(policyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create policy engine: %w", err)
+	}
+
+	return &ABACInterceptor{
+		engine: engine,
+	}, nil
+}
+
+// NewABACInterceptorFromDB creates an ABAC interceptor from database storage
+// TODO: Currently uses a hardcoded user ID - should extract from token in request
+func NewABACInterceptorFromDB(ctx context.Context, databaseURL string) (*ABACInterceptor, error) {
+	pool, err := storage.NewPool(ctx, databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create database pool: %w", err)
+	}
+
+	store := storage.NewStore(pool)
+
+	// TODO: Extract user ID from request context/token
+	// For now, using a placeholder - this needs to be dynamic
+	userID := "00000000-0000-0000-0000-000000000000"
+
+	engine, err := policy.NewPolicyEngineFromDB(ctx, store, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create policy engine from DB: %w", err)
 	}
 
 	return &ABACInterceptor{

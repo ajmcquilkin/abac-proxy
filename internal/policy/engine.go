@@ -1,9 +1,14 @@
 package policy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/abac/proxy/internal/storage"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Policy struct {
@@ -90,4 +95,43 @@ func (pe *PolicyEngine) GetDefaultAction() string {
 
 func (pe *PolicyEngine) GetFilterer() *ResponseFilterer {
 	return pe.filterer
+}
+
+// NewPolicyEngineFromDB creates a PolicyEngine from database storage
+func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID string) (*PolicyEngine, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	// Convert uuid.UUID to pgtype.UUID
+	var uidBytes [16]byte
+	copy(uidBytes[:], uid[:])
+	pgUUID := pgtype.UUID{
+		Bytes: uidBytes,
+		Valid: true,
+	}
+
+	policyRow, err := store.GetActivePolicyForUser(ctx, pgUUID)
+	if err != nil {
+		if storage.IsNotFound(err) {
+			return nil, fmt.Errorf("no active policy found for user %s", userID)
+		}
+		return nil, fmt.Errorf("failed to get active policy: %w", err)
+	}
+
+	var policy Policy
+	if err := json.Unmarshal(policyRow.Content, &policy); err != nil {
+		return nil, fmt.Errorf("failed to parse policy JSON from database: %w", err)
+	}
+
+	if err := validatePolicy(&policy); err != nil {
+		return nil, fmt.Errorf("invalid policy from database: %w", err)
+	}
+
+	return &PolicyEngine{
+		policy:   &policy,
+		matcher:  NewPathMatcher(),
+		filterer: NewResponseFilterer(),
+	}, nil
 }

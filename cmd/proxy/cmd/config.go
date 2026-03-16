@@ -13,6 +13,15 @@ type Config struct {
 	Port      int    `mapstructure:"port"`
 	Allowlist string `mapstructure:"allowlist"`
 	Policy    string `mapstructure:"policy"`
+
+	// Database settings
+	DatabaseURL     string `mapstructure:"database_url"`
+	PolicyStoreType string `mapstructure:"policy_store_type"` // "file" or "db"
+
+	// Redis settings (future)
+	RedisURL             string `mapstructure:"redis_url"`
+	PolicyCacheTTL       int    `mapstructure:"policy_cache_ttl"`
+	PolicyReloadInterval int    `mapstructure:"policy_reload_interval"`
 }
 
 type RootOptions struct {
@@ -39,9 +48,25 @@ func (o *RootOptions) Validate() error {
 	if o.Config.Allowlist == "" {
 		return fmt.Errorf("allowlist file is required")
 	}
-	if o.Config.Policy == "" {
-		return fmt.Errorf("policy file is required")
+
+	// Default to file-based policy store
+	if o.Config.PolicyStoreType == "" {
+		o.Config.PolicyStoreType = "file"
 	}
+
+	// Validate based on policy store type
+	if o.Config.PolicyStoreType == "file" {
+		if o.Config.Policy == "" {
+			return fmt.Errorf("policy file is required when policy_store_type is 'file'")
+		}
+	} else if o.Config.PolicyStoreType == "db" {
+		if o.Config.DatabaseURL == "" {
+			return fmt.Errorf("database_url is required when policy_store_type is 'db'")
+		}
+	} else {
+		return fmt.Errorf("policy_store_type must be 'file' or 'db', got '%s'", o.Config.PolicyStoreType)
+	}
+
 	return nil
 }
 
@@ -49,9 +74,21 @@ func (o *RootOptions) Run(ctx context.Context) error {
 	logger := log.MustInitService("abac-proxy")
 	defer log.Sync(logger)
 
-	interceptor, err := proxy.NewABACInterceptor(o.Config.Policy)
-	if err != nil {
-		return fmt.Errorf("failed to create ABAC interceptor: %w", err)
+	var interceptor proxy.Interceptor
+	var err error
+
+	if o.Config.PolicyStoreType == "db" {
+		// Database-based policy loading
+		interceptor, err = proxy.NewABACInterceptorFromDB(ctx, o.Config.DatabaseURL)
+		if err != nil {
+			return fmt.Errorf("failed to create DB-based ABAC interceptor: %w", err)
+		}
+	} else {
+		// File-based policy loading (default)
+		interceptor, err = proxy.NewABACInterceptor(o.Config.Policy)
+		if err != nil {
+			return fmt.Errorf("failed to create file-based ABAC interceptor: %w", err)
+		}
 	}
 
 	srv, err := proxy.NewServer(o.Config.Allowlist, interceptor)
