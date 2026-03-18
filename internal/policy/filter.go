@@ -6,18 +6,6 @@ import (
 	"strings"
 )
 
-type FilterType string
-
-const (
-	FilterTypeInclude FilterType = "include_fields"
-	FilterTypeExclude FilterType = "exclude_fields"
-)
-
-type ResponseFilter struct {
-	Type   FilterType `json:"type"`
-	Fields []string   `json:"fields"`
-}
-
 type ResponseFilterer struct{}
 
 func NewResponseFilterer() *ResponseFilterer {
