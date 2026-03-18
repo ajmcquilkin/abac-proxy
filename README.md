@@ -126,7 +126,8 @@ curl -s -X POST -H "Authorization: Bearer my-proxy-token" \
 # Denied — invalid token
 curl -s -H "Authorization: Bearer wrong-token" \
   -H "Host: jsonplaceholder.typicode.com" \
-  "http://localhost:8080/users"```
+  "http://localhost:8080/users"
+```
 
 ## Configuration
 
