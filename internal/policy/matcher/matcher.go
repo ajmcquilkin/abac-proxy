@@ -1,10 +1,17 @@
-package policy
+package matcher
 
 import "strings"
 
+type Matcher interface {
+	Matches(pattern, path string) bool
+	MatchesWithMethod(pattern, method, path, reqMethod string) bool
+}
+
 type PathMatcher struct{}
 
-func NewPathMatcher() *PathMatcher {
+var _ Matcher = (*PathMatcher)(nil)
+
+func New() *PathMatcher {
 	return &PathMatcher{}
 }
 

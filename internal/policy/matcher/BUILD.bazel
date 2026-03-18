@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "matcher",
+    srcs = ["matcher.go"],
+    importpath = "github.com/abac/proxy/internal/policy/matcher",
+    visibility = ["//:__subpackages__"],
+)

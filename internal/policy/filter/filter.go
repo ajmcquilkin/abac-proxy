@@ -1,22 +1,50 @@
-package policy
+package filter
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/abac/proxy/internal/policy"
 )
+
+type Filterer interface {
+	Apply(data interface{}, filter policy.ResponseFilter) (interface{}, error)
+}
 
 type ResponseFilterer struct{}
 
-func NewResponseFilterer() *ResponseFilterer {
+var _ Filterer = (*ResponseFilterer)(nil)
+
+func New() *ResponseFilterer {
 	return &ResponseFilterer{}
 }
 
-func (rf *ResponseFilterer) Apply(data interface{}, filter ResponseFilter) (interface{}, error) {
-	if filter.Type == FilterTypeInclude {
-		return rf.applyInclude(data, filter.Fields)
+func (rf *ResponseFilterer) Apply(data interface{}, f policy.ResponseFilter) (interface{}, error) {
+	if f.Type == policy.FilterTypeInclude {
+		return rf.applyInclude(data, f.Fields)
 	}
-	return rf.applyExclude(data, filter.Fields)
+	return rf.applyExclude(data, f.Fields)
+}
+
+func FilterJSON(jsonData []byte, f policy.ResponseFilter) ([]byte, error) {
+	var data interface{}
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	filterer := New()
+	filtered, err := filterer.Apply(data, f)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply filter: %w", err)
+	}
+
+	result, err := json.Marshal(filtered)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal filtered JSON: %w", err)
+	}
+
+	return result, nil
 }
 
 func (rf *ResponseFilterer) applyInclude(data interface{}, fields []string) (interface{}, error) {
@@ -24,7 +52,7 @@ func (rf *ResponseFilterer) applyInclude(data interface{}, fields []string) (int
 	return rf.filterWithTree(data, tree, "")
 }
 
-func (rf *ResponseFilterer) filterWithTree(data interface{}, node *PathNode, currentPath string) (interface{}, error) {
+func (rf *ResponseFilterer) filterWithTree(data interface{}, node *pathNode, currentPath string) (interface{}, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -121,7 +149,6 @@ func (rf *ResponseFilterer) filterWithTree(data interface{}, node *PathNode, cur
 func (rf *ResponseFilterer) applyExclude(data interface{}, fields []string) (interface{}, error) {
 	patterns := make([]string, len(fields))
 	copy(patterns, fields)
-
 	return rf.excludeRecursive(data, patterns, ""), nil
 }
 
@@ -134,7 +161,6 @@ func (rf *ResponseFilterer) excludeRecursive(data interface{}, patterns []string
 			if currentPath != "" {
 				fieldPath = currentPath + "." + key
 			}
-
 			if !rf.shouldExclude(fieldPath, patterns) {
 				result[key] = rf.excludeRecursive(value, patterns, fieldPath)
 			}
@@ -168,8 +194,7 @@ func (rf *ResponseFilterer) shouldExclude(path string, patterns []string) bool {
 
 func (rf *ResponseFilterer) matchesExcludePattern(path, pattern string) bool {
 	pathParts := strings.Split(path, ".")
-	patternParts := parsePathPattern(pattern)
-
+	patternParts := ParsePathPattern(pattern)
 	return rf.matchPathSegments(pathParts, patternParts, 0, 0)
 }
 
@@ -202,22 +227,22 @@ func (rf *ResponseFilterer) matchPathSegments(pathParts, patternParts []string, 
 	return false
 }
 
-type PathNode struct {
-	children   map[string]*PathNode
+type pathNode struct {
+	children   map[string]*pathNode
 	isTerminal bool
 }
 
-func newPathNode() *PathNode {
-	return &PathNode{
-		children: make(map[string]*PathNode),
+func newPathNode() *pathNode {
+	return &pathNode{
+		children: make(map[string]*pathNode),
 	}
 }
 
-func buildIncludeTree(fields []string) *PathNode {
+func buildIncludeTree(fields []string) *pathNode {
 	root := newPathNode()
 
 	for _, field := range fields {
-		parts := parsePathPattern(field)
+		parts := ParsePathPattern(field)
 		current := root
 
 		for i, part := range parts {
@@ -235,7 +260,7 @@ func buildIncludeTree(fields []string) *PathNode {
 	return root
 }
 
-func parsePathPattern(pattern string) []string {
+func ParsePathPattern(pattern string) []string {
 	if pattern == "" {
 		return []string{}
 	}
@@ -272,24 +297,4 @@ func parsePathPattern(pattern string) []string {
 	}
 
 	return parts
-}
-
-func FilterJSON(jsonData []byte, filter ResponseFilter) ([]byte, error) {
-	var data interface{}
-	if err := json.Unmarshal(jsonData, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
-	}
-
-	filterer := NewResponseFilterer()
-	filtered, err := filterer.Apply(data, filter)
-	if err != nil {
-		return nil, fmt.Errorf("failed to apply filter: %w", err)
-	}
-
-	result, err := json.Marshal(filtered)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal filtered JSON: %w", err)
-	}
-
-	return result, nil
 }

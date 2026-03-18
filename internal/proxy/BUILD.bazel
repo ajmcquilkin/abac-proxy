@@ -11,8 +11,8 @@ go_library(
     importpath = "github.com/abac/proxy/internal/proxy",
     visibility = ["//:__subpackages__"],
     deps = [
-        "//internal/db",
+        "//internal/api",
         "//internal/log",
-        "//internal/policy",
+        "//internal/policy/engine",
     ],
 )

@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = [
+        "api.go",
+        "dbapi.go",
+        "fileapi.go",
+    ],
+    importpath = "github.com/abac/proxy/internal/api",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/db",
+        "//internal/policy",
+        "@com_github_google_uuid//:uuid",
+    ],
+)

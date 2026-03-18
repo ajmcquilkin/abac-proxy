@@ -8,59 +8,30 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
+	"github.com/abac/proxy/internal/api"
 	"github.com/abac/proxy/internal/log"
-	"github.com/abac/proxy/internal/policy"
-	"github.com/abac/proxy/internal/db"
+	"github.com/abac/proxy/internal/policy/engine"
 )
 
 type contextKey string
 
 const (
-	contextKeyTokenValid      contextKey = "abac_token_valid"
-	contextKeyRequestPath     contextKey = "abac_request_path"
-	contextKeyRequestMethod   contextKey = "abac_request_method"
-	contextKeyUpstreamToken   contextKey = "abac_upstream_token"
-	contextKeyUpstreamType    contextKey = "abac_upstream_type"
-	contextKeyUpstreamHeader  contextKey = "abac_upstream_header"
-	contextKeyPolicyEngine    contextKey = "abac_policy_engine"
+	contextKeyTokenValid     contextKey = "abac_token_valid"
+	contextKeyRequestPath    contextKey = "abac_request_path"
+	contextKeyRequestMethod  contextKey = "abac_request_method"
+	contextKeyUpstreamToken  contextKey = "abac_upstream_token"
+	contextKeyUpstreamType   contextKey = "abac_upstream_type"
+	contextKeyUpstreamHeader contextKey = "abac_upstream_header"
+	contextKeyPolicyData     contextKey = "abac_policy_data"
 )
 
 type ABACInterceptor struct {
-	// For file-based policy (static)
-	engine *policy.PolicyEngine
-
-	// For database-based policy (cached with TTL)
-	cache *policy.PolicyCache
+	engine engine.Engine
 }
 
-func NewABACInterceptor(policyPath string) (*ABACInterceptor, error) {
-	engine, err := policy.NewPolicyEngine(policyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create policy engine: %w", err)
-	}
-
-	return &ABACInterceptor{
-		engine: engine,
-	}, nil
-}
-
-// NewABACInterceptorFromDB creates an ABAC interceptor from database storage with caching
-func NewABACInterceptorFromDB(ctx context.Context, databaseURL string) (*ABACInterceptor, error) {
-	pool, err := db.NewPool(ctx, databaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create database pool: %w", err)
-	}
-
-	store := db.NewStore(pool)
-
-	// Create policy cache with 15 second TTL
-	cache := policy.NewPolicyCache(store, 15*time.Second)
-
-	return &ABACInterceptor{
-		cache: cache,
-	}, nil
+func NewABACInterceptor(e engine.Engine) *ABACInterceptor {
+	return &ABACInterceptor{engine: e}
 }
 
 func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
@@ -68,7 +39,7 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 
 	token := extractToken(req)
 
-	engine, err := a.getEngine(req.Context(), token)
+	policyData, err := a.engine.GetPolicyData(req.Context(), token)
 	if err != nil {
 		logger.Errorw("failed to load policy or invalid token",
 			"error", err,
@@ -79,7 +50,6 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 		return req.WithContext(ctx)
 	}
 
-	// Token is valid if we successfully loaded the engine
 	logger.Infow("token validated",
 		"path", req.URL.Path,
 		"method", req.Method,
@@ -88,10 +58,10 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 	ctx := context.WithValue(req.Context(), contextKeyTokenValid, true)
 	ctx = context.WithValue(ctx, contextKeyRequestPath, req.URL.Path)
 	ctx = context.WithValue(ctx, contextKeyRequestMethod, req.Method)
-	ctx = context.WithValue(ctx, contextKeyUpstreamToken, engine.GetUpstreamToken())
-	ctx = context.WithValue(ctx, contextKeyUpstreamType, engine.GetUpstreamTokenType())
-	ctx = context.WithValue(ctx, contextKeyUpstreamHeader, engine.GetUpstreamHeaderString())
-	ctx = context.WithValue(ctx, contextKeyPolicyEngine, engine)
+	ctx = context.WithValue(ctx, contextKeyUpstreamToken, policyData.UpstreamToken)
+	ctx = context.WithValue(ctx, contextKeyUpstreamType, policyData.UpstreamTokenType)
+	ctx = context.WithValue(ctx, contextKeyUpstreamHeader, policyData.UpstreamHeaderString)
+	ctx = context.WithValue(ctx, contextKeyPolicyData, policyData)
 
 	return req.WithContext(ctx)
 }
@@ -112,17 +82,16 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 		return nil
 	}
 
-	// Get engine from context (stored in InterceptRequest)
-	engine, ok := resp.Request.Context().Value(contextKeyPolicyEngine).(*policy.PolicyEngine)
-	if !ok {
-		logger.Errorw("policy engine not found in context",
+	policyData, ok := resp.Request.Context().Value(contextKeyPolicyData).(*api.PolicyData)
+	if !ok || policyData == nil {
+		logger.Errorw("policy data not found in context",
 			"path", path,
 		)
 		replaceWithError(resp, http.StatusInternalServerError, "policy engine error")
 		return nil
 	}
 
-	rule, found := engine.FindMatchingRule(path, method)
+	rule, found := a.engine.FindMatchingRule(policyData.Policy.Rules, path, method)
 	action := ""
 	if found {
 		action = rule.Action
@@ -133,7 +102,7 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 			"action", action,
 		)
 	} else {
-		action = engine.GetDefaultAction()
+		action = a.engine.GetDefaultAction(policyData.Policy)
 		logger.Infow("no matching rule, using default action",
 			"path", path,
 			"method", method,
@@ -179,8 +148,7 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 			return nil, fmt.Errorf("invalid JSON response")
 		}
 
-		filterer := engine.GetFilterer()
-		filtered, err := filterer.Apply(data, *rule.ResponseFilter)
+		filtered, err := a.engine.ApplyFilter(data, *rule.ResponseFilter)
 		if err != nil {
 			logger.Errorw("failed to apply response filter",
 				"path", path,
@@ -214,24 +182,6 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 	}
 
 	return nil
-}
-
-// getEngine returns the policy engine, either from static file or cached from DB
-func (a *ABACInterceptor) getEngine(ctx context.Context, token string) (*policy.PolicyEngine, error) {
-	// File-based policy (static)
-	if a.engine != nil {
-		return a.engine, nil
-	}
-
-	// Database-based policy (cached with TTL)
-	if a.cache != nil {
-		if token == "" {
-			return nil, fmt.Errorf("token required for database-backed policy")
-		}
-		return a.cache.GetByToken(ctx, token)
-	}
-
-	return nil, fmt.Errorf("no policy engine configured")
 }
 
 func extractToken(req *http.Request) string {

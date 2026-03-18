@@ -3,8 +3,15 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/abac/proxy/internal/api"
+	"github.com/abac/proxy/internal/auth"
+	"github.com/abac/proxy/internal/db"
 	"github.com/abac/proxy/internal/log"
+	"github.com/abac/proxy/internal/policy/engine"
+	"github.com/abac/proxy/internal/policy/filter"
+	"github.com/abac/proxy/internal/policy/matcher"
 	"github.com/abac/proxy/internal/proxy"
 	"github.com/spf13/viper"
 )
@@ -14,11 +21,9 @@ type Config struct {
 	Allowlist string `mapstructure:"allowlist"`
 	Policy    string `mapstructure:"policy"`
 
-	// Database settings
 	DatabaseURL     string `mapstructure:"database_url"`
-	PolicyStoreType string `mapstructure:"policy_store_type"` // "file" or "db"
+	PolicyStoreType string `mapstructure:"policy_store_type"`
 
-	// Redis settings (future)
 	RedisURL             string `mapstructure:"redis_url"`
 	PolicyCacheTTL       int    `mapstructure:"policy_cache_ttl"`
 	PolicyReloadInterval int    `mapstructure:"policy_reload_interval"`
@@ -49,12 +54,10 @@ func (o *RootOptions) Validate() error {
 		return fmt.Errorf("allowlist file is required")
 	}
 
-	// Default to file-based policy store
 	if o.Config.PolicyStoreType == "" {
 		o.Config.PolicyStoreType = "file"
 	}
 
-	// Validate based on policy store type
 	if o.Config.PolicyStoreType == "file" {
 		if o.Config.Policy == "" {
 			return fmt.Errorf("policy file is required when policy_store_type is 'file'")
@@ -74,22 +77,24 @@ func (o *RootOptions) Run(ctx context.Context) error {
 	logger := log.MustInitService("abac-proxy")
 	defer log.Sync(logger)
 
-	var interceptor proxy.Interceptor
-	var err error
-
+	var a api.Api
 	if o.Config.PolicyStoreType == "db" {
-		// Database-based policy loading
-		interceptor, err = proxy.NewABACInterceptorFromDB(ctx, o.Config.DatabaseURL)
+		pool, err := db.NewPool(ctx, o.Config.DatabaseURL)
 		if err != nil {
-			return fmt.Errorf("failed to create DB-based ABAC interceptor: %w", err)
+			return fmt.Errorf("failed to create database pool: %w", err)
 		}
+		store := db.NewStore(pool)
+		a = api.NewDBApi(store, 15*time.Second, auth.HashToken, auth.ValidateToken)
 	} else {
-		// File-based policy loading (default)
-		interceptor, err = proxy.NewABACInterceptor(o.Config.Policy)
+		var err error
+		a, err = api.NewFileApi(o.Config.Policy)
 		if err != nil {
-			return fmt.Errorf("failed to create file-based ABAC interceptor: %w", err)
+			return fmt.Errorf("failed to load policy file: %w", err)
 		}
 	}
+
+	e := engine.New(a, matcher.New(), filter.New())
+	interceptor := proxy.NewABACInterceptor(e)
 
 	srv, err := proxy.NewServer(o.Config.Allowlist, interceptor)
 	if err != nil {
