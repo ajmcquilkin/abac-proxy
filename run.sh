@@ -48,7 +48,7 @@ if [[ "$*" == *"--db"* ]]; then
   echo "  Database: $DATABASE_URL"
   echo ""
 
-  bazel run //cmd/proxy:proxy_dev -- \
+  bazel run //cmd/proxy:proxy -- \
     --port 8080 \
     --database-url "$DATABASE_URL"
 else
@@ -62,7 +62,7 @@ else
   echo "  curl -H 'Authorization: Bearer my-proxy-token' -H 'Host: jsonplaceholder.typicode.com' http://localhost:8080/users | jq"
   echo ""
 
-  bazel run //cmd/proxy:proxy_dev -- \
+  bazel run //cmd/proxy:proxy -- \
     --port 8080 \
     --policy-group-dir "$(pwd)/examples" \
     --passthrough-unspecified
