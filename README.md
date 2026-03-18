@@ -108,11 +108,25 @@ bazel build //cmd/proxy:proxy
 
 ### Test It
 
+Using the example policies, the proxy token is `my-proxy-token`. Try these requests against the running proxy:
+
 ```bash
-# From inside the agent sandbox (or anywhere):
-curl -H "Authorization: Bearer my-proxy-token" \
-  http://localhost:8080/users
-```
+# List users (response filtered to id, name, address.city, address.geo)
+curl -s -H "Authorization: Bearer my-proxy-token" \
+  -H "Host: jsonplaceholder.typicode.com" \
+  "http://localhost:8080/users"
+# Get a single user (response filtered to id, name, address.zipcode)
+curl -s -H "Authorization: Bearer my-proxy-token" \
+  -H "Host: jsonplaceholder.typicode.com" \
+  "http://localhost:8080/users/2"
+# Denied — no rule allows POST
+curl -s -X POST -H "Authorization: Bearer my-proxy-token" \
+  -H "Host: jsonplaceholder.typicode.com" \
+  "http://localhost:8080/users"
+# Denied — invalid token
+curl -s -H "Authorization: Bearer wrong-token" \
+  -H "Host: jsonplaceholder.typicode.com" \
+  "http://localhost:8080/users"```
 
 ## Configuration
 
