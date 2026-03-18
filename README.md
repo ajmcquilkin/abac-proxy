@@ -115,14 +115,22 @@ Using the example policies, the proxy token is `my-proxy-token`. Try these reque
 curl -s -H "Authorization: Bearer my-proxy-token" \
   -H "Host: jsonplaceholder.typicode.com" \
   "http://localhost:8080/users"
+
 # Get a single user (response filtered to id, name, address.zipcode)
 curl -s -H "Authorization: Bearer my-proxy-token" \
   -H "Host: jsonplaceholder.typicode.com" \
   "http://localhost:8080/users/2"
+
+# Browserbase session (credential injected via x-bb-api-key header)
+curl -s -H "Authorization: Bearer my-proxy-token" \
+  -H "Host: api.browserbase.com" \
+  "http://localhost:8080/v1/sessions/<session-id>"
+
 # Denied — no rule allows POST
 curl -s -X POST -H "Authorization: Bearer my-proxy-token" \
   -H "Host: jsonplaceholder.typicode.com" \
   "http://localhost:8080/users"
+
 # Denied — invalid token
 curl -s -H "Authorization: Bearer wrong-token" \
   -H "Host: jsonplaceholder.typicode.com" \
