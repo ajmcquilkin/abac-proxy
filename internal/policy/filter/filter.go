@@ -9,7 +9,7 @@ import (
 )
 
 type Filterer interface {
-	Apply(data interface{}, filter policy.ResponseFilter) (interface{}, error)
+	Apply(data any, filter policy.ResponseFilter) (any, error)
 }
 
 type ResponseFilterer struct{}
@@ -20,7 +20,7 @@ func New() *ResponseFilterer {
 	return &ResponseFilterer{}
 }
 
-func (rf *ResponseFilterer) Apply(data interface{}, f policy.ResponseFilter) (interface{}, error) {
+func (rf *ResponseFilterer) Apply(data any, f policy.ResponseFilter) (any, error) {
 	if f.Type == policy.FilterTypeInclude {
 		return rf.applyInclude(data, f.Fields)
 	}
@@ -28,7 +28,7 @@ func (rf *ResponseFilterer) Apply(data interface{}, f policy.ResponseFilter) (in
 }
 
 func FilterJSON(jsonData []byte, f policy.ResponseFilter) ([]byte, error) {
-	var data interface{}
+	var data any
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
@@ -47,19 +47,19 @@ func FilterJSON(jsonData []byte, f policy.ResponseFilter) ([]byte, error) {
 	return result, nil
 }
 
-func (rf *ResponseFilterer) applyInclude(data interface{}, fields []string) (interface{}, error) {
+func (rf *ResponseFilterer) applyInclude(data any, fields []string) (any, error) {
 	tree := buildIncludeTree(fields)
 	return rf.filterWithTree(data, tree, "")
 }
 
-func (rf *ResponseFilterer) filterWithTree(data interface{}, node *pathNode, currentPath string) (interface{}, error) {
+func (rf *ResponseFilterer) filterWithTree(data any, node *pathNode, currentPath string) (any, error) {
 	if node == nil {
 		return nil, nil
 	}
 
 	switch v := data.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{})
+	case map[string]any:
+		result := make(map[string]any)
 
 		for key, value := range v {
 			childPath := key
@@ -99,9 +99,9 @@ func (rf *ResponseFilterer) filterWithTree(data interface{}, node *pathNode, cur
 		}
 		return result, nil
 
-	case []interface{}:
+	case []any:
 		if arrayChild, exists := node.children["[]"]; exists {
-			result := make([]interface{}, 0)
+			result := make([]any, 0)
 			for i, item := range v {
 				itemPath := fmt.Sprintf("[%d]", i)
 				if currentPath != "" {
@@ -119,7 +119,7 @@ func (rf *ResponseFilterer) filterWithTree(data interface{}, node *pathNode, cur
 		}
 
 		if wildcard, exists := node.children["*"]; exists {
-			result := make([]interface{}, 0)
+			result := make([]any, 0)
 			for i, item := range v {
 				itemPath := fmt.Sprintf("[%d]", i)
 				if currentPath != "" {
@@ -146,16 +146,16 @@ func (rf *ResponseFilterer) filterWithTree(data interface{}, node *pathNode, cur
 	}
 }
 
-func (rf *ResponseFilterer) applyExclude(data interface{}, fields []string) (interface{}, error) {
+func (rf *ResponseFilterer) applyExclude(data any, fields []string) (any, error) {
 	patterns := make([]string, len(fields))
 	copy(patterns, fields)
 	return rf.excludeRecursive(data, patterns, ""), nil
 }
 
-func (rf *ResponseFilterer) excludeRecursive(data interface{}, patterns []string, currentPath string) interface{} {
+func (rf *ResponseFilterer) excludeRecursive(data any, patterns []string, currentPath string) any {
 	switch v := data.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{})
+	case map[string]any:
+		result := make(map[string]any)
 		for key, value := range v {
 			fieldPath := key
 			if currentPath != "" {
@@ -167,8 +167,8 @@ func (rf *ResponseFilterer) excludeRecursive(data interface{}, patterns []string
 		}
 		return result
 
-	case []interface{}:
-		result := make([]interface{}, len(v))
+	case []any:
+		result := make([]any, len(v))
 		for i, item := range v {
 			itemPath := fmt.Sprintf("[%d]", i)
 			if currentPath != "" {

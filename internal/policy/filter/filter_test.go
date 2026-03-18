@@ -11,58 +11,58 @@ import (
 func TestApplyInclude(t *testing.T) {
 	tests := []struct {
 		name   string
-		data   interface{}
+		data   any
 		fields []string
-		want   interface{}
+		want   any
 	}{
 		{
 			"simple fields",
-			map[string]interface{}{"id": 1.0, "name": "alice", "secret": "x"},
+			map[string]any{"id": 1.0, "name": "alice", "secret": "x"},
 			[]string{"id", "name"},
-			map[string]interface{}{"id": 1.0, "name": "alice"},
+			map[string]any{"id": 1.0, "name": "alice"},
 		},
 		{
 			"nested field",
-			map[string]interface{}{
-				"user": map[string]interface{}{"name": "alice", "email": "a@b.com"},
+			map[string]any{
+				"user": map[string]any{"name": "alice", "email": "a@b.com"},
 				"other": "x",
 			},
 			[]string{"user.name"},
-			map[string]interface{}{
-				"user": map[string]interface{}{"name": "alice"},
+			map[string]any{
+				"user": map[string]any{"name": "alice"},
 			},
 		},
 		{
 			"array field",
-			map[string]interface{}{
-				"items": []interface{}{
-					map[string]interface{}{"id": 1.0, "name": "a"},
-					map[string]interface{}{"id": 2.0, "name": "b"},
+			map[string]any{
+				"items": []any{
+					map[string]any{"id": 1.0, "name": "a"},
+					map[string]any{"id": 2.0, "name": "b"},
 				},
 			},
 			[]string{"items[].id"},
-			map[string]interface{}{
-				"items": []interface{}{
-					map[string]interface{}{"id": 1.0},
-					map[string]interface{}{"id": 2.0},
+			map[string]any{
+				"items": []any{
+					map[string]any{"id": 1.0},
+					map[string]any{"id": 2.0},
 				},
 			},
 		},
 		{
 			"wildcard field",
-			map[string]interface{}{
-				"a": map[string]interface{}{"name": "x", "val": 1.0},
-				"b": map[string]interface{}{"name": "y", "val": 2.0},
+			map[string]any{
+				"a": map[string]any{"name": "x", "val": 1.0},
+				"b": map[string]any{"name": "y", "val": 2.0},
 			},
 			[]string{"*.name"},
-			map[string]interface{}{
-				"a": map[string]interface{}{"name": "x"},
-				"b": map[string]interface{}{"name": "y"},
+			map[string]any{
+				"a": map[string]any{"name": "x"},
+				"b": map[string]any{"name": "y"},
 			},
 		},
 		{
 			"empty fields returns nil",
-			map[string]interface{}{"id": 1.0},
+			map[string]any{"id": 1.0},
 			[]string{},
 			nil,
 		},
@@ -88,36 +88,36 @@ func TestApplyInclude(t *testing.T) {
 func TestApplyExclude(t *testing.T) {
 	tests := []struct {
 		name   string
-		data   interface{}
+		data   any
 		fields []string
-		want   interface{}
+		want   any
 	}{
 		{
 			"simple exclude",
-			map[string]interface{}{"id": 1.0, "secret": "x", "name": "alice"},
+			map[string]any{"id": 1.0, "secret": "x", "name": "alice"},
 			[]string{"secret"},
-			map[string]interface{}{"id": 1.0, "name": "alice"},
+			map[string]any{"id": 1.0, "name": "alice"},
 		},
 		{
 			"nested exclude",
-			map[string]interface{}{
-				"user": map[string]interface{}{"name": "alice", "password": "hash"},
+			map[string]any{
+				"user": map[string]any{"name": "alice", "password": "hash"},
 			},
 			[]string{"user.password"},
-			map[string]interface{}{
-				"user": map[string]interface{}{"name": "alice"},
+			map[string]any{
+				"user": map[string]any{"name": "alice"},
 			},
 		},
 		{
 			"wildcard exclude",
-			map[string]interface{}{
-				"a": map[string]interface{}{"name": "x", "secret": "s1"},
-				"b": map[string]interface{}{"name": "y", "secret": "s2"},
+			map[string]any{
+				"a": map[string]any{"name": "x", "secret": "s1"},
+				"b": map[string]any{"name": "y", "secret": "s2"},
 			},
 			[]string{"*.secret"},
-			map[string]interface{}{
-				"a": map[string]interface{}{"name": "x"},
-				"b": map[string]interface{}{"name": "y"},
+			map[string]any{
+				"a": map[string]any{"name": "x"},
+				"b": map[string]any{"name": "y"},
 			},
 		},
 	}
@@ -170,7 +170,7 @@ func TestFilterJSON(t *testing.T) {
 				t.Fatal("expected non-nil result")
 			}
 			if !tt.wantErr {
-				var parsed map[string]interface{}
+				var parsed map[string]any
 				if err := json.Unmarshal(result, &parsed); err != nil {
 					t.Fatalf("result is not valid JSON: %v", err)
 				}

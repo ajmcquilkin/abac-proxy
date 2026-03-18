@@ -146,10 +146,10 @@ func TestNewFileApi(t *testing.T) {
 			"invalid policy (missing version)",
 			func(dir string) string {
 				p := filepath.Join(dir, "invalid.json")
-				data, _ := json.Marshal(map[string]interface{}{
+				data, _ := json.Marshal(map[string]any{
 					"user":           map[string]string{"token": "t", "id": "1"},
 					"baseUrl":        "http://example.com",
-					"policies":       []interface{}{},
+					"policies":       []any{},
 					"default_action": "allow",
 				})
 				os.WriteFile(p, data, 0644)
@@ -304,11 +304,11 @@ func TestDBApi_InvalidateAll(t *testing.T) {
 
 func writeTestPolicy(t *testing.T, path string) {
 	t.Helper()
-	p := map[string]interface{}{
+	p := map[string]any{
 		"version":        "1.0",
 		"user":           map[string]string{"token": "upstream-token", "id": "user-1"},
 		"baseUrl":        "https://api.example.com",
-		"policies":       []interface{}{},
+		"policies":       []any{},
 		"default_action": "deny",
 	}
 	data, _ := json.Marshal(p)
@@ -318,7 +318,7 @@ func writeTestPolicy(t *testing.T, path string) {
 }
 
 func makeTestDBResult() db.GetDownstreamTokenByHashRow {
-	rules, _ := json.Marshal([]interface{}{})
+	rules, _ := json.Marshal([]any{})
 	userID := pgtype.UUID{Valid: true}
 
 	return db.GetDownstreamTokenByHashRow{

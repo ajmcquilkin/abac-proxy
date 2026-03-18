@@ -139,7 +139,7 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 	}
 
 	filterErr := ReadAndReplaceBody(resp, func(body []byte) ([]byte, error) {
-		var data interface{}
+		var data any
 		if err := json.Unmarshal(body, &data); err != nil {
 			logger.Errorw("failed to parse JSON response",
 				"path", path,

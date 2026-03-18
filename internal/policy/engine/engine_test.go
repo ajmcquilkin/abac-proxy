@@ -36,11 +36,11 @@ func (m *mockMatcher) MatchesWithMethod(_, _, _, _ string) bool {
 }
 
 type mockFilterer struct {
-	data interface{}
+	data any
 	err  error
 }
 
-func (m *mockFilterer) Apply(data interface{}, _ policy.ResponseFilter) (interface{}, error) {
+func (m *mockFilterer) Apply(data any, _ policy.ResponseFilter) (any, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -132,7 +132,7 @@ func TestGetDefaultAction(t *testing.T) {
 }
 
 func TestApplyFilter(t *testing.T) {
-	data := map[string]interface{}{"id": 1.0, "name": "alice"}
+	data := map[string]any{"id": 1.0, "name": "alice"}
 	f := policy.ResponseFilter{Type: policy.FilterTypeInclude, Fields: []string{"id"}}
 
 	e := New(&mockApi{}, &mockMatcher{}, &mockFilterer{})

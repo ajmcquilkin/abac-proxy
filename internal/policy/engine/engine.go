@@ -13,7 +13,7 @@ type Engine interface {
 	GetPolicyData(ctx context.Context, token string) (*api.PolicyData, error)
 	FindMatchingRule(rules []policy.PolicyRule, path, method string) (*policy.PolicyRule, bool)
 	GetDefaultAction(p *policy.Policy) string
-	ApplyFilter(data interface{}, f policy.ResponseFilter) (interface{}, error)
+	ApplyFilter(data any, f policy.ResponseFilter) (any, error)
 }
 
 type PolicyEngine struct {
@@ -50,6 +50,6 @@ func (e *PolicyEngine) GetDefaultAction(p *policy.Policy) string {
 	return p.DefaultAction
 }
 
-func (e *PolicyEngine) ApplyFilter(data interface{}, f policy.ResponseFilter) (interface{}, error) {
+func (e *PolicyEngine) ApplyFilter(data any, f policy.ResponseFilter) (any, error) {
 	return e.filterer.Apply(data, f)
 }
