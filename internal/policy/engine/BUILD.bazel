@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "engine",
@@ -10,5 +10,15 @@ go_library(
         "//internal/policy",
         "//internal/policy/filter",
         "//internal/policy/matcher",
+    ],
+)
+
+go_test(
+    name = "engine_test",
+    srcs = ["engine_test.go"],
+    embed = [":engine"],
+    deps = [
+        "//internal/api",
+        "//internal/policy",
     ],
 )
