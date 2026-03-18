@@ -27,3 +27,33 @@ jobs:
 
       - name: Test
         run: bazel test //...
+
+  publish:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Init Hermit
+        run: ./bin/hermit env --raw >> "$GITHUB_ENV"
+
+      - name: Cache Bazel
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/bazel
+          key: bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'go.sum') }}
+          restore-keys: bazel-${{ runner.os }}-
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push to GHCR
+        run: bazel run //cmd/proxy:push-ghcr -- --tag ${{ github.sha }}
