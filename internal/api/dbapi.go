@@ -30,6 +30,7 @@ type cachedEntry struct {
 	loadedAt time.Time
 }
 
+// compile-time interface check
 var _ Api = (*DBApi)(nil)
 
 func NewDBApi(querier db.Querier, ttl time.Duration, hasher TokenHasher, validator TokenValidator) *DBApi {

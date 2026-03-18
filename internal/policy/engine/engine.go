@@ -16,27 +16,28 @@ type Engine interface {
 	ApplyFilter(data any, f policy.ResponseFilter) (any, error)
 }
 
-type PolicyEngine struct {
+type engine struct {
 	api      api.Api
 	matcher  matcher.Matcher
 	filterer filter.Filterer
 }
 
-var _ Engine = (*PolicyEngine)(nil)
+// compile-time interface check
+var _ Engine = (*engine)(nil)
 
-func New(a api.Api, m matcher.Matcher, f filter.Filterer) *PolicyEngine {
-	return &PolicyEngine{
+func New(a api.Api, m matcher.Matcher, f filter.Filterer) Engine {
+	return &engine{
 		api:      a,
 		matcher:  m,
 		filterer: f,
 	}
 }
 
-func (e *PolicyEngine) GetPolicyData(ctx context.Context, token string) (*api.PolicyData, error) {
+func (e *engine) GetPolicyData(ctx context.Context, token string) (*api.PolicyData, error) {
 	return e.api.GetPolicyData(ctx, token)
 }
 
-func (e *PolicyEngine) FindMatchingRule(rules []policy.PolicyRule, path, method string) (*policy.PolicyRule, bool) {
+func (e *engine) FindMatchingRule(rules []policy.PolicyRule, path, method string) (*policy.PolicyRule, bool) {
 	for i := range rules {
 		rule := &rules[i]
 		if e.matcher.MatchesWithMethod(rule.Route, rule.Method, path, method) {
@@ -46,10 +47,10 @@ func (e *PolicyEngine) FindMatchingRule(rules []policy.PolicyRule, path, method 
 	return nil, false
 }
 
-func (e *PolicyEngine) GetDefaultAction(p *policy.Policy) string {
+func (e *engine) GetDefaultAction(p *policy.Policy) string {
 	return p.DefaultAction
 }
 
-func (e *PolicyEngine) ApplyFilter(data any, f policy.ResponseFilter) (any, error) {
+func (e *engine) ApplyFilter(data any, f policy.ResponseFilter) (any, error) {
 	return e.filterer.Apply(data, f)
 }

@@ -1,7 +1,6 @@
 package filter
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -12,47 +11,28 @@ type Filterer interface {
 	Apply(data any, filter policy.ResponseFilter) (any, error)
 }
 
-type ResponseFilterer struct{}
+type responseFilterer struct{}
 
-var _ Filterer = (*ResponseFilterer)(nil)
+// compile-time interface check
+var _ Filterer = (*responseFilterer)(nil)
 
-func New() *ResponseFilterer {
-	return &ResponseFilterer{}
+func New() Filterer {
+	return &responseFilterer{}
 }
 
-func (rf *ResponseFilterer) Apply(data any, f policy.ResponseFilter) (any, error) {
+func (rf *responseFilterer) Apply(data any, f policy.ResponseFilter) (any, error) {
 	if f.Type == policy.FilterTypeInclude {
 		return rf.applyInclude(data, f.Fields)
 	}
 	return rf.applyExclude(data, f.Fields)
 }
 
-func FilterJSON(jsonData []byte, f policy.ResponseFilter) ([]byte, error) {
-	var data any
-	if err := json.Unmarshal(jsonData, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
-	}
-
-	filterer := New()
-	filtered, err := filterer.Apply(data, f)
-	if err != nil {
-		return nil, fmt.Errorf("failed to apply filter: %w", err)
-	}
-
-	result, err := json.Marshal(filtered)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal filtered JSON: %w", err)
-	}
-
-	return result, nil
-}
-
-func (rf *ResponseFilterer) applyInclude(data any, fields []string) (any, error) {
+func (rf *responseFilterer) applyInclude(data any, fields []string) (any, error) {
 	tree := buildIncludeTree(fields)
 	return rf.filterWithTree(data, tree, "")
 }
 
-func (rf *ResponseFilterer) filterWithTree(data any, node *pathNode, currentPath string) (any, error) {
+func (rf *responseFilterer) filterWithTree(data any, node *pathNode, currentPath string) (any, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -146,13 +126,13 @@ func (rf *ResponseFilterer) filterWithTree(data any, node *pathNode, currentPath
 	}
 }
 
-func (rf *ResponseFilterer) applyExclude(data any, fields []string) (any, error) {
+func (rf *responseFilterer) applyExclude(data any, fields []string) (any, error) {
 	patterns := make([]string, len(fields))
 	copy(patterns, fields)
 	return rf.excludeRecursive(data, patterns, ""), nil
 }
 
-func (rf *ResponseFilterer) excludeRecursive(data any, patterns []string, currentPath string) any {
+func (rf *responseFilterer) excludeRecursive(data any, patterns []string, currentPath string) any {
 	switch v := data.(type) {
 	case map[string]any:
 		result := make(map[string]any)
@@ -170,11 +150,7 @@ func (rf *ResponseFilterer) excludeRecursive(data any, patterns []string, curren
 	case []any:
 		result := make([]any, len(v))
 		for i, item := range v {
-			itemPath := fmt.Sprintf("[%d]", i)
-			if currentPath != "" {
-				itemPath = currentPath + itemPath
-			}
-			result[i] = rf.excludeRecursive(item, patterns, itemPath)
+			result[i] = rf.excludeRecursive(item, patterns, currentPath)
 		}
 		return result
 
@@ -183,7 +159,7 @@ func (rf *ResponseFilterer) excludeRecursive(data any, patterns []string, curren
 	}
 }
 
-func (rf *ResponseFilterer) shouldExclude(path string, patterns []string) bool {
+func (rf *responseFilterer) shouldExclude(path string, patterns []string) bool {
 	for _, pattern := range patterns {
 		if rf.matchesExcludePattern(path, pattern) {
 			return true
@@ -192,13 +168,13 @@ func (rf *ResponseFilterer) shouldExclude(path string, patterns []string) bool {
 	return false
 }
 
-func (rf *ResponseFilterer) matchesExcludePattern(path, pattern string) bool {
+func (rf *responseFilterer) matchesExcludePattern(path, pattern string) bool {
 	pathParts := strings.Split(path, ".")
-	patternParts := ParsePathPattern(pattern)
+	patternParts := parsePathPattern(pattern)
 	return rf.matchPathSegments(pathParts, patternParts, 0, 0)
 }
 
-func (rf *ResponseFilterer) matchPathSegments(pathParts, patternParts []string, pathIdx, patternIdx int) bool {
+func (rf *responseFilterer) matchPathSegments(pathParts, patternParts []string, pathIdx, patternIdx int) bool {
 	if patternIdx >= len(patternParts) {
 		return pathIdx >= len(pathParts)
 	}
@@ -242,7 +218,7 @@ func buildIncludeTree(fields []string) *pathNode {
 	root := newPathNode()
 
 	for _, field := range fields {
-		parts := ParsePathPattern(field)
+		parts := parsePathPattern(field)
 		current := root
 
 		for i, part := range parts {
@@ -260,7 +236,7 @@ func buildIncludeTree(fields []string) *pathNode {
 	return root
 }
 
-func ParsePathPattern(pattern string) []string {
+func parsePathPattern(pattern string) []string {
 	if pattern == "" {
 		return []string{}
 	}

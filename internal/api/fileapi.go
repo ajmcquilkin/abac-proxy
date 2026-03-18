@@ -13,6 +13,7 @@ type FileApi struct {
 	data *PolicyData
 }
 
+// compile-time interface check
 var _ Api = (*FileApi)(nil)
 
 func NewFileApi(policyPath string) (*FileApi, error) {

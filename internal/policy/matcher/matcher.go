@@ -7,15 +7,16 @@ type Matcher interface {
 	MatchesWithMethod(pattern, method, path, reqMethod string) bool
 }
 
-type PathMatcher struct{}
+type pathMatcher struct{}
 
-var _ Matcher = (*PathMatcher)(nil)
+// compile-time interface check
+var _ Matcher = (*pathMatcher)(nil)
 
-func New() *PathMatcher {
-	return &PathMatcher{}
+func New() *pathMatcher {
+	return &pathMatcher{}
 }
 
-func (pm *PathMatcher) Matches(pattern, path string) bool {
+func (pm *pathMatcher) Matches(pattern, path string) bool {
 	pattern = normalizePath(pattern)
 	path = normalizePath(path)
 
@@ -42,7 +43,7 @@ func (pm *PathMatcher) Matches(pattern, path string) bool {
 	return true
 }
 
-func (pm *PathMatcher) MatchesWithMethod(pattern, method, path, reqMethod string) bool {
+func (pm *pathMatcher) MatchesWithMethod(pattern, method, path, reqMethod string) bool {
 	if method != "" && strings.ToUpper(method) != strings.ToUpper(reqMethod) {
 		return false
 	}
