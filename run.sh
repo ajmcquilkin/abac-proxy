@@ -52,6 +52,8 @@ if [[ "$*" == *"--db"* ]]; then
     --port 8080 \
     --database-url "$DATABASE_URL"
 else
+  load_env
+  unset DATABASE_URL
   echo "Starting proxy (file mode)..."
   echo "  Port: 8080"
   echo "  Policy dir: examples/"

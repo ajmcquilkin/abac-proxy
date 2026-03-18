@@ -5,10 +5,12 @@ go_library(
     srcs = ["allowlist.go"],
     importpath = "github.com/abac/proxy/internal/proxy/allowlist",
     visibility = ["//:__subpackages__"],
+    deps = ["//internal/api"],
 )
 
 go_test(
     name = "allowlist_test",
     srcs = ["allowlist_test.go"],
     embed = [":allowlist"],
+    deps = ["//internal/api"],
 )

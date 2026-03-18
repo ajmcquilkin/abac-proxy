@@ -4,7 +4,6 @@
   "policies": [
     {
       "baseUrl": "https://jsonplaceholder.typicode.com",
-      "upstreamToken": "token_123",
       "rules": [
         {
           "route": "/users",
@@ -33,6 +32,9 @@
     },
     {
       "baseUrl": "https://api.browserbase.com",
+      "localUpstreamTokenKey": "BROWSERBASE_API_KEY",
+      "upstreamTokenType": "custom",
+      "upstreamHeaderString": "x-bb-api-key",
       "rules": [
         {
           "route": "/v1/sessions/*",

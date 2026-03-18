@@ -1,64 +1,68 @@
 package allowlist
 
-import "testing"
+import (
+	"testing"
 
-func newFromEntries(entries []HostEntry) Allowlist {
+	"github.com/abac/proxy/internal/api"
+)
+
+func newFromEntries(entries []api.HostEntry) Allowlist {
 	return &allowlist{AllowedHosts: entries}
 }
 
 func TestFindHost(t *testing.T) {
 	tests := []struct {
 		name       string
-		entries    []HostEntry
+		entries    []api.HostEntry
 		host       string
 		wantScheme string
 		wantFound  bool
 	}{
 		{
 			"exact match",
-			[]HostEntry{{Host: "api.example.com", Scheme: "https"}},
+			[]api.HostEntry{{Host: "api.example.com", Scheme: "https"}},
 			"api.example.com",
 			"https",
 			true,
 		},
 		{
 			"exact match case insensitive",
-			[]HostEntry{{Host: "API.Example.com", Scheme: "https"}},
+			[]api.HostEntry{{Host: "API.Example.com", Scheme: "https"}},
 			"api.example.com",
 			"https",
 			true,
 		},
 		{
 			"wildcard match",
-			[]HostEntry{{Host: "*.example.com", Scheme: "https"}},
+			[]api.HostEntry{{Host: "*.example.com", Scheme: "https"}},
 			"api.example.com",
 			"https",
 			true,
 		},
 		{
 			"wildcard bare domain",
-			[]HostEntry{{Host: "*.example.com", Scheme: "https"}},
+			[]api.HostEntry{{Host: "*.example.com", Scheme: "https"}},
 			"example.com",
 			"https",
 			true,
 		},
 		{
 			"no match",
-			[]HostEntry{{Host: "api.example.com", Scheme: "https"}},
+			[]api.HostEntry{{Host: "api.example.com", Scheme: "https"}},
 			"other.com",
 			"",
 			false,
 		},
 		{
 			"http scheme",
-			[]HostEntry{{Host: "localhost", Scheme: "http"}},
+			[]api.HostEntry{{Host: "localhost", Scheme: "http"}},
 			"localhost",
 			"http",
 			true,
 		},
 		{
 			"trims whitespace",
-			[]HostEntry{{Host: "api.example.com", Scheme: "https"}},
+			[]api.HostEntry{{Host: "api.example.com", Scheme: "https"}},
 			"  api.example.com  ",
 			"https",
 			true,
@@ -80,7 +84,7 @@ func TestFindHost(t *testing.T) {
 }
 
 func TestIsAllowed(t *testing.T) {
-	c := newFromEntries([]HostEntry{
+	c := newFromEntries([]api.HostEntry{
 		{Host: "api.example.com", Scheme: "https"},
 	})
 
@@ -94,7 +98,7 @@ func TestIsAllowed(t *testing.T) {
 
 func TestFromEntries(t *testing.T) {
 	t.Run("valid entries", func(t *testing.T) {
-		al, err := FromEntries([]HostEntry{
+		al, err := FromEntries([]api.HostEntry{
 			{Host: "api.example.com", Scheme: "https"},
 			{Host: "localhost", Scheme: "http"},
 		})
@@ -110,14 +114,14 @@ func TestFromEntries(t *testing.T) {
 	})
 
 	t.Run("empty entries", func(t *testing.T) {
-		_, err := FromEntries([]HostEntry{})
+		_, err := FromEntries([]api.HostEntry{})
 		if err == nil {
 			t.Fatal("expected error for empty entries")
 		}
 	})
 
 	t.Run("default scheme", func(t *testing.T) {
-		al, err := FromEntries([]HostEntry{{Host: "api.example.com"}})
+		al, err := FromEntries([]api.HostEntry{{Host: "api.example.com"}})
 		if err != nil {
 			t.Fatalf("FromEntries() error = %v", err)
 		}
@@ -132,7 +136,7 @@ func TestFromEntries(t *testing.T) {
 }
 
 func TestGetHostList(t *testing.T) {
-	c := newFromEntries([]HostEntry{
+	c := newFromEntries([]api.HostEntry{
 		{Host: "api.example.com", Scheme: "https"},
 		{Host: "localhost", Scheme: "http"},
 	})

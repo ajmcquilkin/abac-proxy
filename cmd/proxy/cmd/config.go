@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/abac/proxy/internal/api"
+	apidb "github.com/abac/proxy/internal/api/db"
+	"github.com/abac/proxy/internal/api/fs"
 	"github.com/abac/proxy/internal/auth"
 	"github.com/abac/proxy/internal/db"
 	"github.com/abac/proxy/internal/log"
@@ -88,7 +89,7 @@ func (o *RootOptions) Run(ctx context.Context) error {
 }
 
 func (o *RootOptions) runFileMode(ctx context.Context) error {
-	fa, err := api.NewFileApi(o.Config.PolicyGroup)
+	fa, err := fs.New(o.Config.PolicyGroup)
 	if err != nil {
 		return fmt.Errorf("failed to load policy group files: %w", err)
 	}
@@ -112,7 +113,7 @@ func (o *RootOptions) runDBMode(ctx context.Context) error {
 		return fmt.Errorf("failed to create database pool: %w", err)
 	}
 	store := db.NewStore(pool)
-	_ = api.NewDBApi(store, 15*time.Second, auth.HashToken, auth.ValidateToken)
+	_ = apidb.New(store, 15*time.Second, auth.HashToken, auth.ValidateToken)
 
 	// TODO: DB mode allowlist and startup not yet implemented
 	return fmt.Errorf("DB mode startup not yet implemented")

@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-)
 
-type HostEntry struct {
-	Host   string `json:"host"`
-	Scheme string `json:"scheme"`
-}
+	"github.com/abac/proxy/internal/api"
+)
 
 type Allowlist interface {
 	FindHost(host string) (scheme string, found bool)
@@ -19,17 +16,17 @@ type Allowlist interface {
 }
 
 type allowlist struct {
-	AllowedHosts []HostEntry `json:"allowed_hosts"`
+	AllowedHosts []api.HostEntry `json:"allowed_hosts"`
 }
 
 var _ Allowlist = (*allowlist)(nil)
 
-func FromEntries(entries []HostEntry) (Allowlist, error) {
+func FromEntries(entries []api.HostEntry) (Allowlist, error) {
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("allowlist must contain at least one host")
 	}
 
-	al := &allowlist{AllowedHosts: make([]HostEntry, len(entries))}
+	al := &allowlist{AllowedHosts: make([]api.HostEntry, len(entries))}
 	copy(al.AllowedHosts, entries)
 
 	for i := range al.AllowedHosts {

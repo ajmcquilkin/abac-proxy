@@ -4,24 +4,23 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/abac/proxy/internal/policy"
+	"github.com/abac/proxy/internal/api"
 )
 
 type Filterer interface {
-	Apply(data any, filter policy.ResponseFilter) (any, error)
+	Apply(data any, filter api.ResponseFilter) (any, error)
 }
 
 type responseFilterer struct{}
 
-// compile-time interface check
 var _ Filterer = (*responseFilterer)(nil)
 
 func New() Filterer {
 	return &responseFilterer{}
 }
 
-func (rf *responseFilterer) Apply(data any, f policy.ResponseFilter) (any, error) {
-	if f.Type == policy.FilterTypeInclude {
+func (rf *responseFilterer) Apply(data any, f api.ResponseFilter) (any, error) {
+	if f.Type == api.FilterTypeInclude {
 		return rf.applyInclude(data, f.Fields)
 	}
 	return rf.applyExclude(data, f.Fields)

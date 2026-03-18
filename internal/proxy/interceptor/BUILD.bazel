@@ -21,7 +21,6 @@ go_test(
     embed = [":interceptor"],
     deps = [
         "//internal/api",
-        "//internal/policy",
         "//internal/policy/engine",
     ],
 )

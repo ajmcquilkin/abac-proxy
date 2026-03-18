@@ -1,4 +1,4 @@
-package api
+package db
 
 import (
 	"context"
@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/abac/proxy/internal/db"
-	"github.com/abac/proxy/internal/policy"
+	"github.com/abac/proxy/internal/api"
+	dbstore "github.com/abac/proxy/internal/db"
 	"github.com/google/uuid"
 )
 
 type TokenHasher func(token string) (string, error)
 type TokenValidator func(token, hash string) bool
 
-type DBApi struct {
-	querier   db.Querier
+type dbApi struct {
+	querier   dbstore.Querier
 	hasher    TokenHasher
 	validator TokenValidator
 	ttl       time.Duration
@@ -26,14 +26,14 @@ type DBApi struct {
 }
 
 type cachedEntry struct {
-	data     *PolicyGroupData
+	data     *api.PolicyGroup
 	loadedAt time.Time
 }
 
-var _ Api = (*DBApi)(nil)
+var _ api.Api = (*dbApi)(nil)
 
-func NewDBApi(querier db.Querier, ttl time.Duration, hasher TokenHasher, validator TokenValidator) *DBApi {
-	return &DBApi{
+func New(querier dbstore.Querier, ttl time.Duration, hasher TokenHasher, validator TokenValidator) api.Api {
+	return &dbApi{
 		querier:   querier,
 		hasher:    hasher,
 		validator: validator,
@@ -42,7 +42,7 @@ func NewDBApi(querier db.Querier, ttl time.Duration, hasher TokenHasher, validat
 	}
 }
 
-func (d *DBApi) GetPolicyData(ctx context.Context, token string) (*PolicyGroupData, error) {
+func (d *dbApi) GetPolicyData(ctx context.Context, token string) (*api.PolicyGroup, error) {
 	tokenHash, err := d.hasher(token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash token: %w", err)
@@ -76,7 +76,11 @@ func (d *DBApi) GetPolicyData(ctx context.Context, token string) (*PolicyGroupDa
 	return data, nil
 }
 
-func (d *DBApi) Invalidate(token string) {
+func (d *dbApi) GetAllowedHosts() []api.HostEntry {
+	return nil
+}
+
+func (d *dbApi) Invalidate(token string) {
 	tokenHash, err := d.hasher(token)
 	if err != nil {
 		return
@@ -86,16 +90,16 @@ func (d *DBApi) Invalidate(token string) {
 	delete(d.cache, tokenHash)
 }
 
-func (d *DBApi) InvalidateAll() {
+func (d *dbApi) InvalidateAll() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.cache = make(map[string]*cachedEntry)
 }
 
-func (d *DBApi) loadFromDB(ctx context.Context, token, tokenHash string) (*PolicyGroupData, error) {
+func (d *dbApi) loadFromDB(ctx context.Context, token, tokenHash string) (*api.PolicyGroup, error) {
 	result, err := d.querier.GetDownstreamTokenByHash(ctx, tokenHash)
 	if err != nil {
-		if db.IsNotFound(err) {
+		if dbstore.IsNotFound(err) {
 			return nil, fmt.Errorf("no active policy found for token")
 		}
 		return nil, fmt.Errorf("failed to get policy by token: %w", err)
@@ -105,27 +109,33 @@ func (d *DBApi) loadFromDB(ctx context.Context, token, tokenHash string) (*Polic
 		return nil, fmt.Errorf("invalid token")
 	}
 
-	var rules []policy.PolicyRule
+	var rules []api.PolicyRule
 	if err := json.Unmarshal(result.Policy.Rules, &rules); err != nil {
 		return nil, fmt.Errorf("failed to parse policy rules: %w", err)
 	}
 
 	_ = uuid.UUID(result.Policy.UserID.Bytes).String()
 
-	p := policy.Policy{
+	p := api.Policy{
 		BaseURL:       result.Policy.BaseUrl,
 		UpstreamToken: result.UpstreamCredential.Token,
 		Rules:         rules,
+	}
+
+	if result.UpstreamCredential.TokenType != nil {
+		p.UpstreamTokenType = *result.UpstreamCredential.TokenType
+	}
+	if result.UpstreamCredential.HeaderString != nil {
+		p.UpstreamHeaderString = *result.UpstreamCredential.HeaderString
 	}
 
 	go func() {
 		_ = d.querier.UpdateDownstreamTokenLastUsed(context.Background(), result.ID)
 	}()
 
-	return &PolicyGroupData{
-		Policies:             []policy.Policy{p},
-		DefaultAction:        result.Policy.DefaultAction,
-		UpstreamTokenType:    result.UpstreamCredential.TokenType,
-		UpstreamHeaderString: result.UpstreamCredential.HeaderString,
+	return &api.PolicyGroup{
+		Version:       result.Policy.Version,
+		Policies:      []api.Policy{p},
+		DefaultAction: result.Policy.DefaultAction,
 	}, nil
 }

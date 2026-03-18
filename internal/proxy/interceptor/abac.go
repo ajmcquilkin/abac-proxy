@@ -50,9 +50,9 @@ func (a *abacInterceptor) InterceptRequest(req *http.Request) *http.Request {
 	ctx := context.WithValue(req.Context(), ContextKeyTokenValid, true)
 	ctx = context.WithValue(ctx, ContextKeyRequestPath, req.URL.Path)
 	ctx = context.WithValue(ctx, ContextKeyRequestMethod, req.Method)
-	ctx = context.WithValue(ctx, ContextKeyUpstreamToken, policyData.UpstreamToken)
-	ctx = context.WithValue(ctx, ContextKeyUpstreamType, policyData.UpstreamTokenType)
-	ctx = context.WithValue(ctx, ContextKeyUpstreamHeader, policyData.UpstreamHeaderString)
+	ctx = context.WithValue(ctx, ContextKeyUpstreamToken, policyData.Policy.UpstreamToken)
+	ctx = context.WithValue(ctx, ContextKeyUpstreamType, policyData.Policy.UpstreamTokenType)
+	ctx = context.WithValue(ctx, ContextKeyUpstreamHeader, policyData.Policy.UpstreamHeaderString)
 	ctx = context.WithValue(ctx, ContextKeyPolicyData, policyData)
 
 	return req.WithContext(ctx)

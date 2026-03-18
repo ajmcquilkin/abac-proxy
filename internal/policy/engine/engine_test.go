@@ -6,19 +6,19 @@ import (
 	"testing"
 
 	"github.com/abac/proxy/internal/api"
-	"github.com/abac/proxy/internal/policy"
 )
 
 type mockApi struct {
-	data *api.PolicyGroupData
+	data *api.PolicyGroup
 	err  error
 }
 
-func (m *mockApi) GetPolicyData(_ context.Context, _ string) (*api.PolicyGroupData, error) {
+func (m *mockApi) GetPolicyData(_ context.Context, _ string) (*api.PolicyGroup, error) {
 	return m.data, m.err
 }
-func (m *mockApi) Invalidate(_ string)  {}
-func (m *mockApi) InvalidateAll()       {}
+func (m *mockApi) GetAllowedHosts() []api.HostEntry { return nil }
+func (m *mockApi) Invalidate(_ string)               {}
+func (m *mockApi) InvalidateAll()                     {}
 
 type mockMatcher struct {
 	results []bool
@@ -40,7 +40,7 @@ type mockFilterer struct {
 	err  error
 }
 
-func (m *mockFilterer) Apply(data any, _ policy.ResponseFilter) (any, error) {
+func (m *mockFilterer) Apply(data any, _ api.ResponseFilter) (any, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -59,8 +59,8 @@ func TestGetPolicyData(t *testing.T) {
 	}{
 		{
 			"resolves policy by host",
-			&mockApi{data: &api.PolicyGroupData{
-				Policies: []policy.Policy{
+			&mockApi{data: &api.PolicyGroup{
+				Policies: []api.Policy{
 					{BaseURL: "https://api.example.com", UpstreamToken: "tok"},
 				},
 			}},
@@ -75,8 +75,8 @@ func TestGetPolicyData(t *testing.T) {
 		},
 		{
 			"host not found in group",
-			&mockApi{data: &api.PolicyGroupData{
-				Policies: []policy.Policy{
+			&mockApi{data: &api.PolicyGroup{
+				Policies: []api.Policy{
 					{BaseURL: "https://other.com"},
 				},
 			}},
@@ -100,8 +100,8 @@ func TestGetPolicyData(t *testing.T) {
 }
 
 func TestGetPolicyData_ResolvesUpstreamToken(t *testing.T) {
-	a := &mockApi{data: &api.PolicyGroupData{
-		Policies: []policy.Policy{
+	a := &mockApi{data: &api.PolicyGroup{
+		Policies: []api.Policy{
 			{BaseURL: "https://host-a.com", UpstreamToken: "token-a"},
 			{BaseURL: "https://host-b.com", UpstreamToken: "token-b"},
 		},
@@ -113,8 +113,8 @@ func TestGetPolicyData_ResolvesUpstreamToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPolicyData() error = %v", err)
 	}
-	if got.UpstreamToken != "token-b" {
-		t.Errorf("UpstreamToken = %q, want %q", got.UpstreamToken, "token-b")
+	if got.Policy.UpstreamToken != "token-b" {
+		t.Errorf("UpstreamToken = %q, want %q", got.Policy.UpstreamToken, "token-b")
 	}
 	if got.Policy.BaseURL != "https://host-b.com" {
 		t.Errorf("BaseURL = %q, want %q", got.Policy.BaseURL, "https://host-b.com")
@@ -122,8 +122,8 @@ func TestGetPolicyData_ResolvesUpstreamToken(t *testing.T) {
 }
 
 func TestGetPolicyData_DefaultAction(t *testing.T) {
-	a := &mockApi{data: &api.PolicyGroupData{
-		Policies: []policy.Policy{
+	a := &mockApi{data: &api.PolicyGroup{
+		Policies: []api.Policy{
 			{BaseURL: "https://api.example.com"},
 		},
 		DefaultAction: "allow",
@@ -140,7 +140,7 @@ func TestGetPolicyData_DefaultAction(t *testing.T) {
 }
 
 func TestFindMatchingRule(t *testing.T) {
-	rules := []policy.PolicyRule{
+	rules := []api.PolicyRule{
 		{Route: "/api/users", Method: "GET", Action: "allow"},
 		{Route: "/api/posts", Method: "POST", Action: "deny"},
 	}
@@ -173,7 +173,7 @@ func TestFindMatchingRule(t *testing.T) {
 
 func TestApplyFilter(t *testing.T) {
 	data := map[string]any{"id": 1.0, "name": "alice"}
-	f := policy.ResponseFilter{Type: policy.FilterTypeInclude, Fields: []string{"id"}}
+	f := api.ResponseFilter{Type: api.FilterTypeInclude, Fields: []string{"id"}}
 
 	e := New(&mockApi{}, &mockMatcher{}, &mockFilterer{})
 	got, err := e.ApplyFilter(data, f)

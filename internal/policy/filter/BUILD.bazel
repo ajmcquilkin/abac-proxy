@@ -5,12 +5,12 @@ go_library(
     srcs = ["filter.go"],
     importpath = "github.com/abac/proxy/internal/policy/filter",
     visibility = ["//:__subpackages__"],
-    deps = ["//internal/policy"],
+    deps = ["//internal/api"],
 )
 
 go_test(
     name = "filter_test",
     srcs = ["filter_test.go"],
     embed = [":filter"],
-    deps = ["//internal/policy"],
+    deps = ["//internal/api"],
 )

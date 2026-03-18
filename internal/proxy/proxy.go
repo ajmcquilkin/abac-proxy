@@ -51,20 +51,15 @@ func (s *Server) setUpstreamAuth(r *httputil.ProxyRequest) {
 		return
 	}
 
-	tokenType, _ := ctx.Value(interceptor.ContextKeyUpstreamType).(*string)
-	headerString, _ := ctx.Value(interceptor.ContextKeyUpstreamHeader).(*string)
-
-	if tokenType == nil {
-		bearer := "bearer"
-		tokenType = &bearer
-	}
+	tokenType, _ := ctx.Value(interceptor.ContextKeyUpstreamType).(string)
+	headerString, _ := ctx.Value(interceptor.ContextKeyUpstreamHeader).(string)
 
 	r.Out.Header.Del("Authorization")
 
-	if *tokenType == "custom" && headerString != nil && *headerString != "" {
+	if tokenType == "custom" && headerString != "" {
 		logger.Infow("setting custom upstream auth header",
-			"header", *headerString)
-		r.Out.Header.Set(*headerString, token)
+			"header", headerString)
+		r.Out.Header.Set(headerString, token)
 	} else {
 		logger.Infow("setting bearer upstream auth")
 		r.Out.Header.Set("Authorization", "Bearer "+token)

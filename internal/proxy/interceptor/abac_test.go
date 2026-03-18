@@ -10,14 +10,13 @@ import (
 	"testing"
 
 	"github.com/abac/proxy/internal/api"
-	"github.com/abac/proxy/internal/policy"
 	"github.com/abac/proxy/internal/policy/engine"
 )
 
 type mockEngine struct {
 	policyData *api.PolicyData
 	policyErr  error
-	matchRule  *policy.PolicyRule
+	matchRule  *api.PolicyRule
 	matchFound bool
 	filterData any
 	filterErr  error
@@ -28,10 +27,10 @@ var _ engine.Engine = (*mockEngine)(nil)
 func (m *mockEngine) GetPolicyData(_ context.Context, _, _ string) (*api.PolicyData, error) {
 	return m.policyData, m.policyErr
 }
-func (m *mockEngine) FindMatchingRule(_ []policy.PolicyRule, _, _ string) (*policy.PolicyRule, bool) {
+func (m *mockEngine) FindMatchingRule(_ []api.PolicyRule, _, _ string) (*api.PolicyRule, bool) {
 	return m.matchRule, m.matchFound
 }
-func (m *mockEngine) ApplyFilter(data any, _ policy.ResponseFilter) (any, error) {
+func (m *mockEngine) ApplyFilter(data any, _ api.ResponseFilter) (any, error) {
 	if m.filterErr != nil {
 		return nil, m.filterErr
 	}
@@ -78,9 +77,6 @@ func readResponseBody(t *testing.T, resp *http.Response) map[string]any {
 }
 
 func TestInterceptRequestResponse(t *testing.T) {
-	upstreamType := "bearer"
-	upstreamHeader := ""
-
 	tests := []struct {
 		name                   string
 		engine                 *mockEngine
@@ -94,12 +90,12 @@ func TestInterceptRequestResponse(t *testing.T) {
 			"valid token, allow, no filter",
 			&mockEngine{
 				policyData: &api.PolicyData{
-					Policy:               &policy.Policy{Rules: []policy.PolicyRule{{Route: "/api", Action: "allow"}}},
-					UpstreamToken:        "upstream-token-value-xxxxx",
-					UpstreamTokenType:    &upstreamType,
-					UpstreamHeaderString: &upstreamHeader,
+					Policy: &api.Policy{
+						UpstreamToken: "upstream-token-value-xxxxx",
+						Rules:         []api.PolicyRule{{Route: "/api", Action: "allow"}},
+					},
 				},
-				matchRule:  &policy.PolicyRule{Action: "allow"},
+				matchRule:  &api.PolicyRule{Action: "allow"},
 				matchFound: true,
 			},
 			false,
@@ -134,12 +130,12 @@ func TestInterceptRequestResponse(t *testing.T) {
 			"deny action returns 403",
 			&mockEngine{
 				policyData: &api.PolicyData{
-					Policy:               &policy.Policy{Rules: []policy.PolicyRule{{Route: "/api", Action: "deny"}}},
-					UpstreamToken:        "upstream-token-value-xxxxx",
-					UpstreamTokenType:    &upstreamType,
-					UpstreamHeaderString: &upstreamHeader,
+					Policy: &api.Policy{
+						UpstreamToken: "upstream-token-value-xxxxx",
+						Rules:         []api.PolicyRule{{Route: "/api", Action: "deny"}},
+					},
 				},
-				matchRule:  &policy.PolicyRule{Action: "deny"},
+				matchRule:  &api.PolicyRule{Action: "deny"},
 				matchFound: true,
 			},
 			false,
@@ -152,10 +148,7 @@ func TestInterceptRequestResponse(t *testing.T) {
 			"no match, no passthrough → deny",
 			&mockEngine{
 				policyData: &api.PolicyData{
-					Policy:               &policy.Policy{},
-					UpstreamToken:        "upstream-token-value-xxxxx",
-					UpstreamTokenType:    &upstreamType,
-					UpstreamHeaderString: &upstreamHeader,
+					Policy: &api.Policy{UpstreamToken: "upstream-token-value-xxxxx"},
 				},
 				matchFound: false,
 			},
@@ -169,10 +162,7 @@ func TestInterceptRequestResponse(t *testing.T) {
 			"no match, passthrough → allow",
 			&mockEngine{
 				policyData: &api.PolicyData{
-					Policy:               &policy.Policy{},
-					UpstreamToken:        "upstream-token-value-xxxxx",
-					UpstreamTokenType:    &upstreamType,
-					UpstreamHeaderString: &upstreamHeader,
+					Policy: &api.Policy{UpstreamToken: "upstream-token-value-xxxxx"},
 				},
 				matchFound: false,
 			},
@@ -186,11 +176,8 @@ func TestInterceptRequestResponse(t *testing.T) {
 			"no match, DefaultAction override from DB",
 			&mockEngine{
 				policyData: &api.PolicyData{
-					Policy:               &policy.Policy{},
-					DefaultAction:        "deny",
-					UpstreamToken:        "upstream-token-value-xxxxx",
-					UpstreamTokenType:    &upstreamType,
-					UpstreamHeaderString: &upstreamHeader,
+					Policy:        &api.Policy{UpstreamToken: "upstream-token-value-xxxxx"},
+					DefaultAction: "deny",
 				},
 				matchFound: false,
 			},
@@ -204,22 +191,22 @@ func TestInterceptRequestResponse(t *testing.T) {
 			"filter applied successfully",
 			&mockEngine{
 				policyData: &api.PolicyData{
-					Policy: &policy.Policy{Rules: []policy.PolicyRule{{
-						Route:  "/api",
-						Action: "allow",
-						ResponseFilter: &policy.ResponseFilter{
-							Type:   policy.FilterTypeInclude,
-							Fields: []string{"id"},
-						},
-					}}},
-					UpstreamToken:        "upstream-token-value-xxxxx",
-					UpstreamTokenType:    &upstreamType,
-					UpstreamHeaderString: &upstreamHeader,
+					Policy: &api.Policy{
+						UpstreamToken: "upstream-token-value-xxxxx",
+						Rules: []api.PolicyRule{{
+							Route:  "/api",
+							Action: "allow",
+							ResponseFilter: &api.ResponseFilter{
+								Type:   api.FilterTypeInclude,
+								Fields: []string{"id"},
+							},
+						}},
+					},
 				},
-				matchRule: &policy.PolicyRule{
+				matchRule: &api.PolicyRule{
 					Action: "allow",
-					ResponseFilter: &policy.ResponseFilter{
-						Type:   policy.FilterTypeInclude,
+					ResponseFilter: &api.ResponseFilter{
+						Type:   api.FilterTypeInclude,
 						Fields: []string{"id"},
 					},
 				},
@@ -236,22 +223,22 @@ func TestInterceptRequestResponse(t *testing.T) {
 			"filter error returns 500",
 			&mockEngine{
 				policyData: &api.PolicyData{
-					Policy: &policy.Policy{Rules: []policy.PolicyRule{{
-						Route:  "/api",
-						Action: "allow",
-						ResponseFilter: &policy.ResponseFilter{
-							Type:   policy.FilterTypeInclude,
-							Fields: []string{"id"},
-						},
-					}}},
-					UpstreamToken:        "upstream-token-value-xxxxx",
-					UpstreamTokenType:    &upstreamType,
-					UpstreamHeaderString: &upstreamHeader,
+					Policy: &api.Policy{
+						UpstreamToken: "upstream-token-value-xxxxx",
+						Rules: []api.PolicyRule{{
+							Route:  "/api",
+							Action: "allow",
+							ResponseFilter: &api.ResponseFilter{
+								Type:   api.FilterTypeInclude,
+								Fields: []string{"id"},
+							},
+						}},
+					},
 				},
-				matchRule: &policy.PolicyRule{
+				matchRule: &api.PolicyRule{
 					Action: "allow",
-					ResponseFilter: &policy.ResponseFilter{
-						Type:   policy.FilterTypeInclude,
+					ResponseFilter: &api.ResponseFilter{
+						Type:   api.FilterTypeInclude,
 						Fields: []string{"id"},
 					},
 				},
@@ -393,15 +380,9 @@ func TestReadAndReplaceBody(t *testing.T) {
 }
 
 func TestContextKeyPassing(t *testing.T) {
-	upstreamType := "bearer"
-	upstreamHeader := ""
-
 	e := &mockEngine{
 		policyData: &api.PolicyData{
-			Policy:               &policy.Policy{},
-			UpstreamToken:        "upstream-token-value-xxxxx",
-			UpstreamTokenType:    &upstreamType,
-			UpstreamHeaderString: &upstreamHeader,
+			Policy: &api.Policy{UpstreamToken: "upstream-token-value-xxxxx"},
 		},
 		matchFound: false,
 	}

@@ -7,15 +7,14 @@ import (
 	"strings"
 
 	"github.com/abac/proxy/internal/api"
-	"github.com/abac/proxy/internal/policy"
 	"github.com/abac/proxy/internal/policy/filter"
 	"github.com/abac/proxy/internal/policy/matcher"
 )
 
 type Engine interface {
 	GetPolicyData(ctx context.Context, token, host string) (*api.PolicyData, error)
-	FindMatchingRule(rules []policy.PolicyRule, path, method string) (*policy.PolicyRule, bool)
-	ApplyFilter(data any, f policy.ResponseFilter) (any, error)
+	FindMatchingRule(rules []api.PolicyRule, path, method string) (*api.PolicyRule, bool)
+	ApplyFilter(data any, f api.ResponseFilter) (any, error)
 }
 
 type engine struct {
@@ -50,11 +49,8 @@ func (e *engine) GetPolicyData(ctx context.Context, token, host string) (*api.Po
 		}
 		if strings.ToLower(policyHost) == host {
 			return &api.PolicyData{
-				Policy:               p,
-				DefaultAction:        groupData.DefaultAction,
-				UpstreamToken:        p.UpstreamToken,
-				UpstreamTokenType:    groupData.UpstreamTokenType,
-				UpstreamHeaderString: groupData.UpstreamHeaderString,
+				Policy:        p,
+				DefaultAction: groupData.DefaultAction,
 			}, nil
 		}
 	}
@@ -62,7 +58,7 @@ func (e *engine) GetPolicyData(ctx context.Context, token, host string) (*api.Po
 	return nil, fmt.Errorf("no policy found for host %q", host)
 }
 
-func (e *engine) FindMatchingRule(rules []policy.PolicyRule, path, method string) (*policy.PolicyRule, bool) {
+func (e *engine) FindMatchingRule(rules []api.PolicyRule, path, method string) (*api.PolicyRule, bool) {
 	for i := range rules {
 		rule := &rules[i]
 		if e.matcher.MatchesWithMethod(rule.Route, rule.Method, path, method) {
@@ -72,7 +68,7 @@ func (e *engine) FindMatchingRule(rules []policy.PolicyRule, path, method string
 	return nil, false
 }
 
-func (e *engine) ApplyFilter(data any, f policy.ResponseFilter) (any, error) {
+func (e *engine) ApplyFilter(data any, f api.ResponseFilter) (any, error) {
 	return e.filterer.Apply(data, f)
 }
 

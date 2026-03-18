@@ -1,28 +1,55 @@
 package api
 
-import (
-	"context"
+import "context"
 
-	"github.com/abac/proxy/internal/policy"
+type FilterType string
+
+const (
+	FilterTypeInclude FilterType = "include_fields"
+	FilterTypeExclude FilterType = "exclude_fields"
 )
 
-type PolicyGroupData struct {
-	Policies             []policy.Policy
-	DefaultAction        string
-	UpstreamTokenType    *string
-	UpstreamHeaderString *string
+type ResponseFilter struct {
+	Type   FilterType `json:"type"`
+	Fields []string   `json:"fields"`
 }
 
-type PolicyData struct {
-	Policy               *policy.Policy
-	DefaultAction        string
+type PolicyRule struct {
+	Route          string          `json:"route"`
+	Method         string          `json:"method"`
+	Action         string          `json:"action"`
+	ResponseFilter *ResponseFilter `json:"response_filter,omitempty"`
+}
+
+type Policy struct {
+	BaseURL              string
 	UpstreamToken        string
-	UpstreamTokenType    *string
-	UpstreamHeaderString *string
+	UpstreamTokenType    string
+	UpstreamHeaderString string
+	Rules                []PolicyRule
+}
+
+type HostEntry struct {
+	Host   string `json:"host"`
+	Scheme string `json:"scheme"`
+}
+
+type PolicyGroup struct {
+	Version       string
+	Policies      []Policy
+	DefaultAction string
+}
+
+// PolicyData is the resolved per-request view: a single Policy selected by host,
+// plus group-level fields (DefaultAction) needed for the interceptor decision.
+type PolicyData struct {
+	Policy        *Policy
+	DefaultAction string
 }
 
 type Api interface {
-	GetPolicyData(ctx context.Context, token string) (*PolicyGroupData, error)
+	GetPolicyData(ctx context.Context, token string) (*PolicyGroup, error)
+	GetAllowedHosts() []HostEntry
 	Invalidate(token string)
 	InvalidateAll()
 }

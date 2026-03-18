@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/abac/proxy/internal/policy"
+	"github.com/abac/proxy/internal/api"
 )
 
 func TestApply(t *testing.T) {
@@ -192,8 +192,8 @@ func TestApply(t *testing.T) {
 	f := New()
 	for _, tt := range tests {
 		t.Run(tt.name+"/include", func(t *testing.T) {
-			got, err := f.Apply(tt.data, policy.ResponseFilter{
-				Type:   policy.FilterTypeInclude,
+			got, err := f.Apply(tt.data, api.ResponseFilter{
+				Type:   api.FilterTypeInclude,
 				Fields: tt.fields,
 			})
 			if err != nil {
@@ -204,8 +204,8 @@ func TestApply(t *testing.T) {
 			}
 		})
 		t.Run(tt.name+"/exclude", func(t *testing.T) {
-			got, err := f.Apply(tt.data, policy.ResponseFilter{
-				Type:   policy.FilterTypeExclude,
+			got, err := f.Apply(tt.data, api.ResponseFilter{
+				Type:   api.FilterTypeExclude,
 				Fields: tt.fields,
 			})
 			if err != nil {
