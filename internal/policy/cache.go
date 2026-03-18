@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/abac/proxy/internal/auth"
-	"github.com/abac/proxy/internal/storage"
+	"github.com/abac/proxy/internal/db"
 )
 
 type PolicyCache struct {
-	store *storage.Store
+	store *db.Store
 	ttl   time.Duration
 
 	mu       sync.RWMutex
@@ -22,7 +22,7 @@ type cachedEngine struct {
 	loadedAt time.Time
 }
 
-func NewPolicyCache(store *storage.Store, ttl time.Duration) *PolicyCache {
+func NewPolicyCache(store *db.Store, ttl time.Duration) *PolicyCache {
 	return &PolicyCache{
 		store:   store,
 		ttl:     ttl,

@@ -3,7 +3,7 @@
 //   sqlc v1.29.0
 // source: users.sql
 
-package storage
+package db
 
 import (
 	"context"

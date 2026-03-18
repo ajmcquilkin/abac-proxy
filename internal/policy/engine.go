@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/abac/proxy/internal/auth"
-	"github.com/abac/proxy/internal/storage"
+	"github.com/abac/proxy/internal/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -115,7 +115,7 @@ func (pe *PolicyEngine) GetFilterer() *ResponseFilterer {
 }
 
 // NewPolicyEngineFromDB creates a PolicyEngine from database storage
-func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID string) (*PolicyEngine, error) {
+func NewPolicyEngineFromDB(ctx context.Context, store *db.Store, userID string) (*PolicyEngine, error) {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID: %w", err)
@@ -131,7 +131,7 @@ func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID str
 
 	policyRow, err := store.GetActivePolicyForUser(ctx, pgUUID)
 	if err != nil {
-		if storage.IsNotFound(err) {
+		if db.IsNotFound(err) {
 			return nil, fmt.Errorf("no active policy found for user %s", userID)
 		}
 		return nil, fmt.Errorf("failed to get active policy: %w", err)
@@ -173,7 +173,7 @@ func NewPolicyEngineFromDB(ctx context.Context, store *storage.Store, userID str
 }
 
 // NewPolicyEngineFromDownstreamToken creates a PolicyEngine by looking up the downstream token
-func NewPolicyEngineFromDownstreamToken(ctx context.Context, store *storage.Store, token string) (*PolicyEngine, error) {
+func NewPolicyEngineFromDownstreamToken(ctx context.Context, store *db.Store, token string) (*PolicyEngine, error) {
 	// Hash the client token
 	tokenHash, err := auth.HashToken(token)
 	if err != nil {
@@ -183,7 +183,7 @@ func NewPolicyEngineFromDownstreamToken(ctx context.Context, store *storage.Stor
 	// Query with 3-way JOIN
 	result, err := store.GetDownstreamTokenByHash(ctx, tokenHash)
 	if err != nil {
-		if storage.IsNotFound(err) {
+		if db.IsNotFound(err) {
 			return nil, fmt.Errorf("no active policy found for token")
 		}
 		return nil, fmt.Errorf("failed to get policy by token: %w", err)

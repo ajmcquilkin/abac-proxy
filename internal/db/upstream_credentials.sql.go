@@ -3,7 +3,7 @@
 //   sqlc v1.29.0
 // source: upstream_credentials.sql
 
-package storage
+package db
 
 import (
 	"context"

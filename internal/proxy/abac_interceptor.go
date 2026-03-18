@@ -12,7 +12,7 @@ import (
 
 	"github.com/abac/proxy/internal/log"
 	"github.com/abac/proxy/internal/policy"
-	"github.com/abac/proxy/internal/storage"
+	"github.com/abac/proxy/internal/db"
 )
 
 type contextKey string
@@ -48,12 +48,12 @@ func NewABACInterceptor(policyPath string) (*ABACInterceptor, error) {
 
 // NewABACInterceptorFromDB creates an ABAC interceptor from database storage with caching
 func NewABACInterceptorFromDB(ctx context.Context, databaseURL string) (*ABACInterceptor, error) {
-	pool, err := storage.NewPool(ctx, databaseURL)
+	pool, err := db.NewPool(ctx, databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database pool: %w", err)
 	}
 
-	store := storage.NewStore(pool)
+	store := db.NewStore(pool)
 
 	// Create policy cache with 15 second TTL
 	cache := policy.NewPolicyCache(store, 15*time.Second)
