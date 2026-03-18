@@ -2,6 +2,9 @@ package engine
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/abac/proxy/internal/api"
 	"github.com/abac/proxy/internal/policy"
@@ -10,9 +13,8 @@ import (
 )
 
 type Engine interface {
-	GetPolicyData(ctx context.Context, token string) (*api.PolicyData, error)
+	GetPolicyData(ctx context.Context, token, host string) (*api.PolicyData, error)
 	FindMatchingRule(rules []policy.PolicyRule, path, method string) (*policy.PolicyRule, bool)
-	GetDefaultAction(p *policy.Policy) string
 	ApplyFilter(data any, f policy.ResponseFilter) (any, error)
 }
 
@@ -22,7 +24,6 @@ type engine struct {
 	filterer filter.Filterer
 }
 
-// compile-time interface check
 var _ Engine = (*engine)(nil)
 
 func New(a api.Api, m matcher.Matcher, f filter.Filterer) Engine {
@@ -33,8 +34,32 @@ func New(a api.Api, m matcher.Matcher, f filter.Filterer) Engine {
 	}
 }
 
-func (e *engine) GetPolicyData(ctx context.Context, token string) (*api.PolicyData, error) {
-	return e.api.GetPolicyData(ctx, token)
+func (e *engine) GetPolicyData(ctx context.Context, token, host string) (*api.PolicyData, error) {
+	groupData, err := e.api.GetPolicyData(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	host = strings.ToLower(strings.TrimSpace(host))
+
+	for i := range groupData.Policies {
+		p := &groupData.Policies[i]
+		policyHost, err := extractHost(p.BaseURL)
+		if err != nil {
+			continue
+		}
+		if strings.ToLower(policyHost) == host {
+			return &api.PolicyData{
+				Policy:               p,
+				DefaultAction:        groupData.DefaultAction,
+				UpstreamToken:        p.UpstreamToken,
+				UpstreamTokenType:    groupData.UpstreamTokenType,
+				UpstreamHeaderString: groupData.UpstreamHeaderString,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no policy found for host %q", host)
 }
 
 func (e *engine) FindMatchingRule(rules []policy.PolicyRule, path, method string) (*policy.PolicyRule, bool) {
@@ -47,10 +72,17 @@ func (e *engine) FindMatchingRule(rules []policy.PolicyRule, path, method string
 	return nil, false
 }
 
-func (e *engine) GetDefaultAction(p *policy.Policy) string {
-	return p.DefaultAction
-}
-
 func (e *engine) ApplyFilter(data any, f policy.ResponseFilter) (any, error) {
 	return e.filterer.Apply(data, f)
+}
+
+func extractHost(baseURL string) (string, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("no host in URL %q", baseURL)
+	}
+	return u.Host, nil
 }

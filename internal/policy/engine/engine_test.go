@@ -10,11 +10,11 @@ import (
 )
 
 type mockApi struct {
-	data *api.PolicyData
+	data *api.PolicyGroupData
 	err  error
 }
 
-func (m *mockApi) GetPolicyData(_ context.Context, _ string) (*api.PolicyData, error) {
+func (m *mockApi) GetPolicyData(_ context.Context, _ string) (*api.PolicyGroupData, error) {
 	return m.data, m.err
 }
 func (m *mockApi) Invalidate(_ string)  {}
@@ -54,19 +54,33 @@ func TestGetPolicyData(t *testing.T) {
 	tests := []struct {
 		name    string
 		api     *mockApi
+		host    string
 		wantErr bool
 	}{
 		{
-			"api returns data",
-			&mockApi{data: &api.PolicyData{
-				Policy:        &policy.Policy{DefaultAction: "allow"},
-				UpstreamToken: "tok",
+			"resolves policy by host",
+			&mockApi{data: &api.PolicyGroupData{
+				Policies: []policy.Policy{
+					{BaseURL: "https://api.example.com", UpstreamToken: "tok"},
+				},
 			}},
+			"api.example.com",
 			false,
 		},
 		{
 			"api returns error",
 			&mockApi{err: fmt.Errorf("db down")},
+			"api.example.com",
+			true,
+		},
+		{
+			"host not found in group",
+			&mockApi{data: &api.PolicyGroupData{
+				Policies: []policy.Policy{
+					{BaseURL: "https://other.com"},
+				},
+			}},
+			"api.example.com",
 			true,
 		},
 	}
@@ -74,7 +88,7 @@ func TestGetPolicyData(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := New(tt.api, &mockMatcher{}, &mockFilterer{})
-			got, err := e.GetPolicyData(context.Background(), "token")
+			got, err := e.GetPolicyData(context.Background(), "token", tt.host)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("GetPolicyData() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -82,6 +96,46 @@ func TestGetPolicyData(t *testing.T) {
 				t.Fatal("expected non-nil result")
 			}
 		})
+	}
+}
+
+func TestGetPolicyData_ResolvesUpstreamToken(t *testing.T) {
+	a := &mockApi{data: &api.PolicyGroupData{
+		Policies: []policy.Policy{
+			{BaseURL: "https://host-a.com", UpstreamToken: "token-a"},
+			{BaseURL: "https://host-b.com", UpstreamToken: "token-b"},
+		},
+	}}
+
+	e := New(a, &mockMatcher{}, &mockFilterer{})
+
+	got, err := e.GetPolicyData(context.Background(), "tok", "host-b.com")
+	if err != nil {
+		t.Fatalf("GetPolicyData() error = %v", err)
+	}
+	if got.UpstreamToken != "token-b" {
+		t.Errorf("UpstreamToken = %q, want %q", got.UpstreamToken, "token-b")
+	}
+	if got.Policy.BaseURL != "https://host-b.com" {
+		t.Errorf("BaseURL = %q, want %q", got.Policy.BaseURL, "https://host-b.com")
+	}
+}
+
+func TestGetPolicyData_DefaultAction(t *testing.T) {
+	a := &mockApi{data: &api.PolicyGroupData{
+		Policies: []policy.Policy{
+			{BaseURL: "https://api.example.com"},
+		},
+		DefaultAction: "allow",
+	}}
+
+	e := New(a, &mockMatcher{}, &mockFilterer{})
+	got, err := e.GetPolicyData(context.Background(), "tok", "api.example.com")
+	if err != nil {
+		t.Fatalf("GetPolicyData() error = %v", err)
+	}
+	if got.DefaultAction != "allow" {
+		t.Errorf("DefaultAction = %q, want %q", got.DefaultAction, "allow")
 	}
 }
 
@@ -114,20 +168,6 @@ func TestFindMatchingRule(t *testing.T) {
 				t.Errorf("got action %q, want %q", rule.Action, tt.wantAction)
 			}
 		})
-	}
-}
-
-func TestGetDefaultAction(t *testing.T) {
-	e := New(&mockApi{}, &mockMatcher{}, &mockFilterer{})
-
-	p := &policy.Policy{DefaultAction: "deny"}
-	if got := e.GetDefaultAction(p); got != "deny" {
-		t.Errorf("GetDefaultAction() = %q, want %q", got, "deny")
-	}
-
-	p2 := &policy.Policy{DefaultAction: "allow"}
-	if got := e.GetDefaultAction(p2); got != "allow" {
-		t.Errorf("GetDefaultAction() = %q, want %q", got, "allow")
 	}
 }
 

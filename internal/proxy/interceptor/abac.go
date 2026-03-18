@@ -15,21 +15,23 @@ import (
 )
 
 type abacInterceptor struct {
-	engine engine.Engine
+	engine                 engine.Engine
+	passthroughUnspecified bool
 }
 
 var _ Interceptor = (*abacInterceptor)(nil)
 
-func New(e engine.Engine) Interceptor {
-	return &abacInterceptor{engine: e}
+func New(e engine.Engine, passthroughUnspecified bool) Interceptor {
+	return &abacInterceptor{engine: e, passthroughUnspecified: passthroughUnspecified}
 }
 
 func (a *abacInterceptor) InterceptRequest(req *http.Request) *http.Request {
 	logger := log.From(req.Context())
 
 	token := extractToken(req)
+	host := req.Host
 
-	policyData, err := a.engine.GetPolicyData(req.Context(), token)
+	policyData, err := a.engine.GetPolicyData(req.Context(), token, host)
 	if err != nil {
 		logger.Errorw("failed to load policy or invalid token",
 			"error", err,
@@ -92,7 +94,13 @@ func (a *abacInterceptor) InterceptResponse(resp *http.Response) error {
 			"action", action,
 		)
 	} else {
-		action = a.engine.GetDefaultAction(policyData.Policy)
+		if policyData.DefaultAction != "" {
+			action = policyData.DefaultAction
+		} else if a.passthroughUnspecified {
+			action = "allow"
+		} else {
+			action = "deny"
+		}
 		logger.Infow("no matching rule, using default action",
 			"path", path,
 			"method", method,

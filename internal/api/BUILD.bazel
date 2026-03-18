@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//internal/db",
         "//internal/policy",
+        "//internal/proxy/allowlist",
         "@com_github_google_uuid//:uuid",
     ],
 )
@@ -22,6 +23,7 @@ go_test(
     embed = [":api"],
     deps = [
         "//internal/db",
+        "//internal/policy",
         "@com_github_jackc_pgx_v5//:pgx",
         "@com_github_jackc_pgx_v5//pgtype",
     ],

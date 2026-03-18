@@ -92,6 +92,45 @@ func TestIsAllowed(t *testing.T) {
 	}
 }
 
+func TestFromEntries(t *testing.T) {
+	t.Run("valid entries", func(t *testing.T) {
+		al, err := FromEntries([]HostEntry{
+			{Host: "api.example.com", Scheme: "https"},
+			{Host: "localhost", Scheme: "http"},
+		})
+		if err != nil {
+			t.Fatalf("FromEntries() error = %v", err)
+		}
+		if !al.IsAllowed("api.example.com") {
+			t.Error("expected api.example.com to be allowed")
+		}
+		if !al.IsAllowed("localhost") {
+			t.Error("expected localhost to be allowed")
+		}
+	})
+
+	t.Run("empty entries", func(t *testing.T) {
+		_, err := FromEntries([]HostEntry{})
+		if err == nil {
+			t.Fatal("expected error for empty entries")
+		}
+	})
+
+	t.Run("default scheme", func(t *testing.T) {
+		al, err := FromEntries([]HostEntry{{Host: "api.example.com"}})
+		if err != nil {
+			t.Fatalf("FromEntries() error = %v", err)
+		}
+		scheme, found := al.FindHost("api.example.com")
+		if !found {
+			t.Fatal("expected host to be found")
+		}
+		if scheme != "https" {
+			t.Errorf("scheme = %q, want %q", scheme, "https")
+		}
+	})
+}
+
 func TestGetHostList(t *testing.T) {
 	c := newFromEntries([]HostEntry{
 		{Host: "api.example.com", Scheme: "https"},

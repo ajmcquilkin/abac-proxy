@@ -4,47 +4,95 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/abac/proxy/internal/policy"
+	"github.com/abac/proxy/internal/proxy/allowlist"
 )
 
 type FileApi struct {
-	data *PolicyData
+	groups map[string]*PolicyGroupData
+	hosts  []allowlist.HostEntry
 }
 
-// compile-time interface check
 var _ Api = (*FileApi)(nil)
 
-func NewFileApi(policyPath string) (*FileApi, error) {
-	raw, err := os.ReadFile(policyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read policy file: %w", err)
+func NewFileApi(paths []string) (*FileApi, error) {
+	fa := &FileApi{
+		groups: make(map[string]*PolicyGroupData),
 	}
 
-	var p policy.Policy
-	if err := json.Unmarshal(raw, &p); err != nil {
-		return nil, fmt.Errorf("failed to parse policy JSON: %w", err)
+	seenHosts := make(map[string]bool)
+
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read policy group file %s: %w", path, err)
+		}
+
+		var pg policy.PolicyGroup
+		if err := json.Unmarshal(raw, &pg); err != nil {
+			return nil, fmt.Errorf("failed to parse policy group JSON %s: %w", path, err)
+		}
+
+		if err := policy.ValidatePolicyGroup(&pg); err != nil {
+			return nil, fmt.Errorf("invalid policy group %s: %w", path, err)
+		}
+
+		if _, exists := fa.groups[pg.LocalToken]; exists {
+			return nil, fmt.Errorf("duplicate localToken %q in %s", pg.LocalToken, path)
+		}
+
+		for i := range pg.Policies {
+			host, scheme, err := extractHostAndScheme(pg.Policies[i].BaseURL)
+			if err != nil {
+				return nil, fmt.Errorf("policy group %s: policy[%d]: %w", path, i, err)
+			}
+
+			if !seenHosts[host] {
+				seenHosts[host] = true
+				fa.hosts = append(fa.hosts, allowlist.HostEntry{
+					Host:   host,
+					Scheme: scheme,
+				})
+			}
+		}
+
+		fa.groups[pg.LocalToken] = &PolicyGroupData{
+			Policies: pg.Policies,
+		}
 	}
 
-	if err := policy.ValidatePolicy(&p); err != nil {
-		return nil, fmt.Errorf("invalid policy: %w", err)
-	}
-
-	bearerType := "bearer"
-	return &FileApi{
-		data: &PolicyData{
-			Policy:            &p,
-			UpstreamToken:     p.User.Token,
-			UpstreamTokenType: &bearerType,
-		},
-	}, nil
+	return fa, nil
 }
 
-func (f *FileApi) GetPolicyData(_ context.Context, _ string) (*PolicyData, error) {
-	return f.data, nil
+func (f *FileApi) GetPolicyData(_ context.Context, token string) (*PolicyGroupData, error) {
+	if data, ok := f.groups[token]; ok {
+		return data, nil
+	}
+	return nil, fmt.Errorf("no policy group found for token")
+}
+
+func (f *FileApi) GetAllowedHosts() []allowlist.HostEntry {
+	return f.hosts
 }
 
 func (f *FileApi) Invalidate(_ string) {}
 
 func (f *FileApi) InvalidateAll() {}
+
+func extractHostAndScheme(baseURL string) (string, string, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid baseUrl %q: %w", baseURL, err)
+	}
+	if u.Host == "" {
+		return "", "", fmt.Errorf("baseUrl %q has no host", baseURL)
+	}
+	scheme := u.Scheme
+	if scheme == "" {
+		scheme = "https"
+	}
+	return u.Host, scheme, nil
+}

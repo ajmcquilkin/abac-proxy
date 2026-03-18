@@ -63,12 +63,10 @@ func (s *Server) setUpstreamAuth(r *httputil.ProxyRequest) {
 
 	if *tokenType == "custom" && headerString != nil && *headerString != "" {
 		logger.Infow("setting custom upstream auth header",
-			"header", *headerString,
-			"token_preview", token[:20]+"...")
+			"header", *headerString)
 		r.Out.Header.Set(*headerString, token)
 	} else {
-		logger.Infow("setting bearer upstream auth",
-			"token_preview", token[:20]+"...")
+		logger.Infow("setting bearer upstream auth")
 		r.Out.Header.Set("Authorization", "Bearer "+token)
 	}
 }

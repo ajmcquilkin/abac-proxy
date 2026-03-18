@@ -27,18 +27,17 @@ func NewRootCommand() *cobra.Command {
 
 	flags := rootCmd.Flags()
 	flags.Int("port", 8080, "HTTP proxy listen port")
-	flags.String("allowlist", "", "Path to allowlist JSON file")
-	flags.String("policy", "", "Path to ABAC policy JSON file")
-	flags.String("policy-store-type", "file", "Policy store type: 'file' or 'db'")
-	flags.String("database-url", "", "Database connection URL (required when policy-store-type is 'db')")
+	flags.StringArray("policy-group", nil, "Path to *.policygroup.json file (repeatable)")
+	flags.String("policy-group-dir", "", "Directory containing *.policygroup.json files")
+	flags.Bool("passthrough-unspecified", false, "Allow unmatched routes instead of denying")
+	flags.String("database-url", "", "Database connection URL (mutually exclusive with --policy-group)")
 
 	_ = v.BindPFlags(flags)
-	_ = v.BindPFlag("policy_store_type", flags.Lookup("policy-store-type"))
+	_ = v.BindPFlag("policy_group", flags.Lookup("policy-group"))
+	_ = v.BindPFlag("policy_group_dir", flags.Lookup("policy-group-dir"))
+	_ = v.BindPFlag("passthrough_unspecified", flags.Lookup("passthrough-unspecified"))
 	_ = v.BindPFlag("database_url", flags.Lookup("database-url"))
 	_ = v.BindEnv("port", "PROXY_PORT")
-	_ = v.BindEnv("allowlist", "PROXY_ALLOWLIST")
-	_ = v.BindEnv("policy", "PROXY_POLICY")
-	_ = v.BindEnv("policy_store_type", "POLICY_STORE_TYPE")
 	_ = v.BindEnv("database_url", "DATABASE_URL")
 
 	return rootCmd

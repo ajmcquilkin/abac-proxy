@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/abac/proxy/internal/db"
+	"github.com/abac/proxy/internal/policy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// mockQuerier implements db.Querier for testing
 type mockQuerier struct {
 	getDownstreamResult db.GetDownstreamTokenByHashRow
 	getDownstreamErr    error
@@ -25,7 +25,6 @@ func (m *mockQuerier) GetDownstreamTokenByHash(_ context.Context, _ string) (db.
 	return m.getDownstreamResult, m.getDownstreamErr
 }
 
-// Stub out all other Querier methods
 func (m *mockQuerier) ActivatePolicy(_ context.Context, _ pgtype.UUID) error { return nil }
 func (m *mockQuerier) CreateDownstreamToken(_ context.Context, _ db.CreateDownstreamTokenParams) (db.DownstreamToken, error) {
 	return db.DownstreamToken{}, nil
@@ -81,39 +80,117 @@ func plainValidator(token, hash string) bool    { return token == hash }
 
 func TestFileApi_GetPolicyData(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "policy.json")
-	writeTestPolicy(t, path)
+	path := filepath.Join(dir, "test.policygroup.json")
+	writeTestPolicyGroup(t, path)
 
-	fa, err := NewFileApi(path)
+	fa, err := NewFileApi([]string{path})
 	if err != nil {
 		t.Fatalf("NewFileApi() error = %v", err)
 	}
 
-	tests := []struct {
-		name  string
-		token string
-	}{
-		{"returns pre-loaded data", "any-token"},
-		{"token ignored", "different-token"},
+	data, err := fa.GetPolicyData(context.Background(), "test-local-token")
+	if err != nil {
+		t.Fatalf("GetPolicyData() error = %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			data, err := fa.GetPolicyData(context.Background(), tt.token)
-			if err != nil {
-				t.Fatalf("GetPolicyData() error = %v", err)
-			}
-			if data == nil || data.Policy == nil {
-				t.Fatal("expected non-nil policy data")
-			}
-			if data.Policy.DefaultAction != "deny" {
-				t.Errorf("got default_action %q, want %q", data.Policy.DefaultAction, "deny")
-			}
-		})
+	if data == nil || len(data.Policies) == 0 {
+		t.Fatal("expected non-empty policies")
+	}
+	if data.Policies[0].BaseURL != "https://api.example.com" {
+		t.Errorf("got baseURL %q, want %q", data.Policies[0].BaseURL, "https://api.example.com")
 	}
 }
 
-func TestNewFileApi(t *testing.T) {
+func TestFileApi_TokenNotFound(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.policygroup.json")
+	writeTestPolicyGroup(t, path)
+
+	fa, err := NewFileApi([]string{path})
+	if err != nil {
+		t.Fatalf("NewFileApi() error = %v", err)
+	}
+
+	_, err = fa.GetPolicyData(context.Background(), "unknown-token")
+	if err == nil {
+		t.Fatal("expected error for unknown token")
+	}
+}
+
+func TestFileApi_MultipleFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	pg1 := policy.PolicyGroup{
+		Version:    "1.0",
+		LocalToken: "token-a",
+		Policies: []policy.Policy{{
+			BaseURL: "https://host-a.com",
+			Rules:   []policy.PolicyRule{{Route: "/a", Method: "GET", Action: "allow"}},
+		}},
+	}
+	pg2 := policy.PolicyGroup{
+		Version:    "1.0",
+		LocalToken: "token-b",
+		Policies: []policy.Policy{{
+			BaseURL: "https://host-b.com",
+			Rules:   []policy.PolicyRule{{Route: "/b", Method: "GET", Action: "allow"}},
+		}},
+	}
+
+	path1 := filepath.Join(dir, "a.policygroup.json")
+	path2 := filepath.Join(dir, "b.policygroup.json")
+	writePolicyGroupFile(t, path1, pg1)
+	writePolicyGroupFile(t, path2, pg2)
+
+	fa, err := NewFileApi([]string{path1, path2})
+	if err != nil {
+		t.Fatalf("NewFileApi() error = %v", err)
+	}
+
+	data, err := fa.GetPolicyData(context.Background(), "token-a")
+	if err != nil {
+		t.Fatalf("GetPolicyData(token-a) error = %v", err)
+	}
+	if data.Policies[0].BaseURL != "https://host-a.com" {
+		t.Errorf("got %q, want %q", data.Policies[0].BaseURL, "https://host-a.com")
+	}
+
+	data, err = fa.GetPolicyData(context.Background(), "token-b")
+	if err != nil {
+		t.Fatalf("GetPolicyData(token-b) error = %v", err)
+	}
+	if data.Policies[0].BaseURL != "https://host-b.com" {
+		t.Errorf("got %q, want %q", data.Policies[0].BaseURL, "https://host-b.com")
+	}
+
+	hosts := fa.GetAllowedHosts()
+	if len(hosts) != 2 {
+		t.Errorf("expected 2 allowed hosts, got %d", len(hosts))
+	}
+}
+
+func TestFileApi_DuplicateToken(t *testing.T) {
+	dir := t.TempDir()
+	pg := policy.PolicyGroup{
+		Version:    "1.0",
+		LocalToken: "same-token",
+		Policies: []policy.Policy{{
+			BaseURL: "https://host.com",
+			Rules:   []policy.PolicyRule{{Route: "/a", Method: "GET", Action: "allow"}},
+		}},
+	}
+
+	path1 := filepath.Join(dir, "a.policygroup.json")
+	path2 := filepath.Join(dir, "b.policygroup.json")
+	writePolicyGroupFile(t, path1, pg)
+	writePolicyGroupFile(t, path2, pg)
+
+	_, err := NewFileApi([]string{path1, path2})
+	if err == nil {
+		t.Fatal("expected error for duplicate localToken")
+	}
+}
+
+func TestNewFileApi_Errors(t *testing.T) {
 	tests := []struct {
 		name    string
 		setup   func(string) string
@@ -122,35 +199,35 @@ func TestNewFileApi(t *testing.T) {
 		{
 			"valid file",
 			func(dir string) string {
-				p := filepath.Join(dir, "good.json")
-				writeTestPolicy(t, p)
+				p := filepath.Join(dir, "good.policygroup.json")
+				writeTestPolicyGroup(t, p)
 				return p
 			},
 			false,
 		},
 		{
 			"not found",
-			func(_ string) string { return "/nonexistent/policy.json" },
+			func(_ string) string { return "/nonexistent/policy.policygroup.json" },
 			true,
 		},
 		{
 			"invalid JSON",
 			func(dir string) string {
-				p := filepath.Join(dir, "bad.json")
+				p := filepath.Join(dir, "bad.policygroup.json")
 				os.WriteFile(p, []byte("{not json}"), 0644)
 				return p
 			},
 			true,
 		},
 		{
-			"invalid policy (missing version)",
+			"invalid policy group (missing version)",
 			func(dir string) string {
-				p := filepath.Join(dir, "invalid.json")
+				p := filepath.Join(dir, "invalid.policygroup.json")
 				data, _ := json.Marshal(map[string]any{
-					"user":           map[string]string{"token": "t", "id": "1"},
-					"baseUrl":        "http://example.com",
-					"policies":       []any{},
-					"default_action": "allow",
+					"localToken": "tok",
+					"policies": []any{
+						map[string]any{"baseUrl": "https://example.com", "rules": []any{}},
+					},
 				})
 				os.WriteFile(p, data, 0644)
 				return p
@@ -163,7 +240,7 @@ func TestNewFileApi(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := tt.setup(dir)
-			_, err := NewFileApi(path)
+			_, err := NewFileApi([]string{path})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewFileApi() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -302,18 +379,25 @@ func TestDBApi_InvalidateAll(t *testing.T) {
 	}
 }
 
-func writeTestPolicy(t *testing.T, path string) {
+func writeTestPolicyGroup(t *testing.T, path string) {
 	t.Helper()
-	p := map[string]any{
-		"version":        "1.0",
-		"user":           map[string]string{"token": "upstream-token", "id": "user-1"},
-		"baseUrl":        "https://api.example.com",
-		"policies":       []any{},
-		"default_action": "deny",
+	pg := policy.PolicyGroup{
+		Version:    "1.0",
+		LocalToken: "test-local-token",
+		Policies: []policy.Policy{{
+			BaseURL:       "https://api.example.com",
+			UpstreamToken: "upstream-token",
+			Rules:         []policy.PolicyRule{},
+		}},
 	}
-	data, _ := json.Marshal(p)
+	writePolicyGroupFile(t, path, pg)
+}
+
+func writePolicyGroupFile(t *testing.T, path string, pg policy.PolicyGroup) {
+	t.Helper()
+	data, _ := json.Marshal(pg)
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		t.Fatalf("failed to write test policy: %v", err)
+		t.Fatalf("failed to write test policy group: %v", err)
 	}
 }
 

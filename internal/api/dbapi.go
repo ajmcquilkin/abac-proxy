@@ -26,11 +26,10 @@ type DBApi struct {
 }
 
 type cachedEntry struct {
-	data     *PolicyData
+	data     *PolicyGroupData
 	loadedAt time.Time
 }
 
-// compile-time interface check
 var _ Api = (*DBApi)(nil)
 
 func NewDBApi(querier db.Querier, ttl time.Duration, hasher TokenHasher, validator TokenValidator) *DBApi {
@@ -43,7 +42,7 @@ func NewDBApi(querier db.Querier, ttl time.Duration, hasher TokenHasher, validat
 	}
 }
 
-func (d *DBApi) GetPolicyData(ctx context.Context, token string) (*PolicyData, error) {
+func (d *DBApi) GetPolicyData(ctx context.Context, token string) (*PolicyGroupData, error) {
 	tokenHash, err := d.hasher(token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash token: %w", err)
@@ -93,7 +92,7 @@ func (d *DBApi) InvalidateAll() {
 	d.cache = make(map[string]*cachedEntry)
 }
 
-func (d *DBApi) loadFromDB(ctx context.Context, token, tokenHash string) (*PolicyData, error) {
+func (d *DBApi) loadFromDB(ctx context.Context, token, tokenHash string) (*PolicyGroupData, error) {
 	result, err := d.querier.GetDownstreamTokenByHash(ctx, tokenHash)
 	if err != nil {
 		if db.IsNotFound(err) {
@@ -111,27 +110,21 @@ func (d *DBApi) loadFromDB(ctx context.Context, token, tokenHash string) (*Polic
 		return nil, fmt.Errorf("failed to parse policy rules: %w", err)
 	}
 
-	userID := uuid.UUID(result.Policy.UserID.Bytes).String()
+	_ = uuid.UUID(result.Policy.UserID.Bytes).String()
 
-	p := &policy.Policy{
-		Version:       result.Policy.Version,
-		User:          policy.PolicyUser{Token: result.UpstreamCredential.Token, ID: userID},
+	p := policy.Policy{
 		BaseURL:       result.Policy.BaseUrl,
+		UpstreamToken: result.UpstreamCredential.Token,
 		Rules:         rules,
-		DefaultAction: result.Policy.DefaultAction,
-	}
-
-	if err := policy.ValidatePolicy(p); err != nil {
-		return nil, fmt.Errorf("invalid policy from database: %w", err)
 	}
 
 	go func() {
 		_ = d.querier.UpdateDownstreamTokenLastUsed(context.Background(), result.ID)
 	}()
 
-	return &PolicyData{
-		Policy:               p,
-		UpstreamToken:        result.UpstreamCredential.Token,
+	return &PolicyGroupData{
+		Policies:             []policy.Policy{p},
+		DefaultAction:        result.Policy.DefaultAction,
 		UpstreamTokenType:    result.UpstreamCredential.TokenType,
 		UpstreamHeaderString: result.UpstreamCredential.HeaderString,
 	}, nil

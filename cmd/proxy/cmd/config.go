@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/abac/proxy/internal/api"
@@ -19,16 +20,13 @@ import (
 )
 
 type Config struct {
-	Port      int    `mapstructure:"port"`
-	Allowlist string `mapstructure:"allowlist"`
-	Policy    string `mapstructure:"policy"`
+	Port int `mapstructure:"port"`
 
-	DatabaseURL     string `mapstructure:"database_url"`
-	PolicyStoreType string `mapstructure:"policy_store_type"`
+	PolicyGroup    []string `mapstructure:"policy_group"`
+	PolicyGroupDir string   `mapstructure:"policy_group_dir"`
 
-	RedisURL             string `mapstructure:"redis_url"`
-	PolicyCacheTTL       int    `mapstructure:"policy_cache_ttl"`
-	PolicyReloadInterval int    `mapstructure:"policy_reload_interval"`
+	PassthroughUnspecified bool   `mapstructure:"passthrough_unspecified"`
+	DatabaseURL            string `mapstructure:"database_url"`
 }
 
 type RootOptions struct {
@@ -52,59 +50,70 @@ func (o *RootOptions) Validate() error {
 	if o.Config.Port <= 0 || o.Config.Port > 65535 {
 		return fmt.Errorf("port must be between 1 and 65535, got %d", o.Config.Port)
 	}
-	if o.Config.Allowlist == "" {
-		return fmt.Errorf("allowlist file is required")
+
+	hasFileMode := len(o.Config.PolicyGroup) > 0 || o.Config.PolicyGroupDir != ""
+	hasDBMode := o.Config.DatabaseURL != ""
+
+	if hasFileMode && hasDBMode {
+		return fmt.Errorf("--database-url is mutually exclusive with --policy-group / --policy-group-dir")
 	}
 
-	if o.Config.PolicyStoreType == "" {
-		o.Config.PolicyStoreType = "file"
+	if !hasFileMode && !hasDBMode {
+		return fmt.Errorf("either --policy-group / --policy-group-dir or --database-url is required")
 	}
 
-	if o.Config.PolicyStoreType == "file" {
-		if o.Config.Policy == "" {
-			return fmt.Errorf("policy file is required when policy_store_type is 'file'")
+	if o.Config.PolicyGroupDir != "" {
+		matches, err := filepath.Glob(filepath.Join(o.Config.PolicyGroupDir, "*.policygroup.json"))
+		if err != nil {
+			return fmt.Errorf("failed to glob policy group dir: %w", err)
 		}
-	} else if o.Config.PolicyStoreType == "db" {
-		if o.Config.DatabaseURL == "" {
-			return fmt.Errorf("database_url is required when policy_store_type is 'db'")
+		if len(matches) == 0 && len(o.Config.PolicyGroup) == 0 {
+			return fmt.Errorf("no *.policygroup.json files found in %s", o.Config.PolicyGroupDir)
 		}
-	} else {
-		return fmt.Errorf("policy_store_type must be 'file' or 'db', got '%s'", o.Config.PolicyStoreType)
+		o.Config.PolicyGroup = append(o.Config.PolicyGroup, matches...)
 	}
 
 	return nil
 }
 
 func (o *RootOptions) Run(ctx context.Context) error {
-	logger := log.MustInitService("abac-proxy")
-	defer log.Sync(logger)
+	l := log.MustInitService("abac-proxy")
+	defer log.Sync(l)
 
-	var a api.Api
-	if o.Config.PolicyStoreType == "db" {
-		pool, err := db.NewPool(ctx, o.Config.DatabaseURL)
-		if err != nil {
-			return fmt.Errorf("failed to create database pool: %w", err)
-		}
-		store := db.NewStore(pool)
-		a = api.NewDBApi(store, 15*time.Second, auth.HashToken, auth.ValidateToken)
-	} else {
-		var err error
-		a, err = api.NewFileApi(o.Config.Policy)
-		if err != nil {
-			return fmt.Errorf("failed to load policy file: %w", err)
-		}
+	if o.Config.DatabaseURL != "" {
+		return o.runDBMode(ctx)
 	}
 
-	e := engine.New(a, matcher.New(), filter.New())
-	i := interceptor.New(e)
+	return o.runFileMode(ctx)
+}
 
-	hosts, err := allowlist.New(o.Config.Allowlist)
+func (o *RootOptions) runFileMode(ctx context.Context) error {
+	fa, err := api.NewFileApi(o.Config.PolicyGroup)
 	if err != nil {
-		return fmt.Errorf("failed to load allowlist: %w", err)
+		return fmt.Errorf("failed to load policy group files: %w", err)
 	}
 
+	hosts, err := allowlist.FromEntries(fa.GetAllowedHosts())
+	if err != nil {
+		return fmt.Errorf("failed to build allowlist from policy groups: %w", err)
+	}
+
+	e := engine.New(fa, matcher.New(), filter.New())
+	i := interceptor.New(e, o.Config.PassthroughUnspecified)
 	srv := proxy.New(hosts, i)
 
 	addr := fmt.Sprintf(":%d", o.Config.Port)
 	return srv.Start(ctx, addr)
+}
+
+func (o *RootOptions) runDBMode(ctx context.Context) error {
+	pool, err := db.NewPool(ctx, o.Config.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("failed to create database pool: %w", err)
+	}
+	store := db.NewStore(pool)
+	_ = api.NewDBApi(store, 15*time.Second, auth.HashToken, auth.ValidateToken)
+
+	// TODO: DB mode allowlist and startup not yet implemented
+	return fmt.Errorf("DB mode startup not yet implemented")
 }

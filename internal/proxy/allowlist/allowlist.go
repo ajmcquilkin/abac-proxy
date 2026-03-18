@@ -24,6 +24,23 @@ type allowlist struct {
 
 var _ Allowlist = (*allowlist)(nil)
 
+func FromEntries(entries []HostEntry) (Allowlist, error) {
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("allowlist must contain at least one host")
+	}
+
+	al := &allowlist{AllowedHosts: make([]HostEntry, len(entries))}
+	copy(al.AllowedHosts, entries)
+
+	for i := range al.AllowedHosts {
+		if al.AllowedHosts[i].Scheme == "" {
+			al.AllowedHosts[i].Scheme = "https"
+		}
+	}
+
+	return al, nil
+}
+
 func New(path string) (Allowlist, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

@@ -2,17 +2,16 @@ package policy
 
 import "fmt"
 
-type Policy struct {
-	Version       string       `json:"version"`
-	User          PolicyUser   `json:"user"`
-	BaseURL       string       `json:"baseUrl"`
-	Rules         []PolicyRule `json:"policies"`
-	DefaultAction string       `json:"default_action"`
+type PolicyGroup struct {
+	Version    string   `json:"version"`
+	LocalToken string   `json:"localToken"`
+	Policies   []Policy `json:"policies"`
 }
 
-type PolicyUser struct {
-	Token string `json:"token"`
-	ID    string `json:"id"`
+type Policy struct {
+	BaseURL       string       `json:"baseUrl"`
+	UpstreamToken string       `json:"upstreamToken,omitempty"`
+	Rules         []PolicyRule `json:"rules"`
 }
 
 type PolicyRule struct {
@@ -34,18 +33,20 @@ type ResponseFilter struct {
 	Fields []string   `json:"fields"`
 }
 
-func ValidatePolicy(p *Policy) error {
-	if p.Version == "" {
+func ValidatePolicyGroup(pg *PolicyGroup) error {
+	if pg.Version == "" {
 		return fmt.Errorf("version is required")
 	}
-	if p.User.Token == "" {
-		return fmt.Errorf("user token is required")
+	if pg.LocalToken == "" {
+		return fmt.Errorf("localToken is required")
 	}
-	if p.DefaultAction == "" {
-		return fmt.Errorf("default_action is required")
+	if len(pg.Policies) == 0 {
+		return fmt.Errorf("at least one policy is required")
 	}
-	if p.DefaultAction != "allow" && p.DefaultAction != "deny" {
-		return fmt.Errorf("default_action must be 'allow' or 'deny'")
+	for i, p := range pg.Policies {
+		if p.BaseURL == "" {
+			return fmt.Errorf("policy[%d]: baseUrl is required", i)
+		}
 	}
 	return nil
 }
