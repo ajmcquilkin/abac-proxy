@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "interceptor",
+    srcs = [
+        "abac.go",
+        "interceptor.go",
+    ],
+    importpath = "github.com/abac/proxy/internal/proxy/interceptor",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/api",
+        "//internal/log",
+        "//internal/policy/engine",
+    ],
+)
+
+go_test(
+    name = "interceptor_test",
+    srcs = ["abac_test.go"],
+    embed = [":interceptor"],
+    deps = [
+        "//internal/api",
+        "//internal/policy",
+        "//internal/policy/engine",
+    ],
+)

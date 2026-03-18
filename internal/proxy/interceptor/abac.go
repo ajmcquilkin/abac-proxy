@@ -1,4 +1,4 @@
-package proxy
+package interceptor
 
 import (
 	"bytes"
@@ -14,27 +14,17 @@ import (
 	"github.com/abac/proxy/internal/policy/engine"
 )
 
-type contextKey string
-
-const (
-	contextKeyTokenValid     contextKey = "abac_token_valid"
-	contextKeyRequestPath    contextKey = "abac_request_path"
-	contextKeyRequestMethod  contextKey = "abac_request_method"
-	contextKeyUpstreamToken  contextKey = "abac_upstream_token"
-	contextKeyUpstreamType   contextKey = "abac_upstream_type"
-	contextKeyUpstreamHeader contextKey = "abac_upstream_header"
-	contextKeyPolicyData     contextKey = "abac_policy_data"
-)
-
-type ABACInterceptor struct {
+type abacInterceptor struct {
 	engine engine.Engine
 }
 
-func NewABACInterceptor(e engine.Engine) *ABACInterceptor {
-	return &ABACInterceptor{engine: e}
+var _ Interceptor = (*abacInterceptor)(nil)
+
+func New(e engine.Engine) Interceptor {
+	return &abacInterceptor{engine: e}
 }
 
-func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
+func (a *abacInterceptor) InterceptRequest(req *http.Request) *http.Request {
 	logger := log.From(req.Context())
 
 	token := extractToken(req)
@@ -44,9 +34,9 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 		logger.Errorw("failed to load policy or invalid token",
 			"error", err,
 		)
-		ctx := context.WithValue(req.Context(), contextKeyTokenValid, false)
-		ctx = context.WithValue(ctx, contextKeyRequestPath, req.URL.Path)
-		ctx = context.WithValue(ctx, contextKeyRequestMethod, req.Method)
+		ctx := context.WithValue(req.Context(), ContextKeyTokenValid, false)
+		ctx = context.WithValue(ctx, ContextKeyRequestPath, req.URL.Path)
+		ctx = context.WithValue(ctx, ContextKeyRequestMethod, req.Method)
 		return req.WithContext(ctx)
 	}
 
@@ -55,23 +45,23 @@ func (a *ABACInterceptor) InterceptRequest(req *http.Request) *http.Request {
 		"method", req.Method,
 	)
 
-	ctx := context.WithValue(req.Context(), contextKeyTokenValid, true)
-	ctx = context.WithValue(ctx, contextKeyRequestPath, req.URL.Path)
-	ctx = context.WithValue(ctx, contextKeyRequestMethod, req.Method)
-	ctx = context.WithValue(ctx, contextKeyUpstreamToken, policyData.UpstreamToken)
-	ctx = context.WithValue(ctx, contextKeyUpstreamType, policyData.UpstreamTokenType)
-	ctx = context.WithValue(ctx, contextKeyUpstreamHeader, policyData.UpstreamHeaderString)
-	ctx = context.WithValue(ctx, contextKeyPolicyData, policyData)
+	ctx := context.WithValue(req.Context(), ContextKeyTokenValid, true)
+	ctx = context.WithValue(ctx, ContextKeyRequestPath, req.URL.Path)
+	ctx = context.WithValue(ctx, ContextKeyRequestMethod, req.Method)
+	ctx = context.WithValue(ctx, ContextKeyUpstreamToken, policyData.UpstreamToken)
+	ctx = context.WithValue(ctx, ContextKeyUpstreamType, policyData.UpstreamTokenType)
+	ctx = context.WithValue(ctx, ContextKeyUpstreamHeader, policyData.UpstreamHeaderString)
+	ctx = context.WithValue(ctx, ContextKeyPolicyData, policyData)
 
 	return req.WithContext(ctx)
 }
 
-func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
+func (a *abacInterceptor) InterceptResponse(resp *http.Response) error {
 	logger := log.From(resp.Request.Context())
 
-	tokenValid, _ := resp.Request.Context().Value(contextKeyTokenValid).(bool)
-	path, _ := resp.Request.Context().Value(contextKeyRequestPath).(string)
-	method, _ := resp.Request.Context().Value(contextKeyRequestMethod).(string)
+	tokenValid, _ := resp.Request.Context().Value(ContextKeyTokenValid).(bool)
+	path, _ := resp.Request.Context().Value(ContextKeyRequestPath).(string)
+	method, _ := resp.Request.Context().Value(ContextKeyRequestMethod).(string)
 
 	if !tokenValid {
 		logger.Warnw("access denied: invalid token",
@@ -82,7 +72,7 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 		return nil
 	}
 
-	policyData, ok := resp.Request.Context().Value(contextKeyPolicyData).(*api.PolicyData)
+	policyData, ok := resp.Request.Context().Value(ContextKeyPolicyData).(*api.PolicyData)
 	if !ok || policyData == nil {
 		logger.Errorw("policy data not found in context",
 			"path", path,
@@ -138,7 +128,7 @@ func (a *ABACInterceptor) InterceptResponse(resp *http.Response) error {
 		return nil
 	}
 
-	filterErr := ReadAndReplaceBody(resp, func(body []byte) ([]byte, error) {
+	filterErr := readAndReplaceBody(resp, func(body []byte) ([]byte, error) {
 		var data any
 		if err := json.Unmarshal(body, &data); err != nil {
 			logger.Errorw("failed to parse JSON response",
@@ -208,4 +198,27 @@ func replaceWithError(resp *http.Response, statusCode int, message string) {
 	resp.ContentLength = int64(len(body))
 	resp.Header.Set("Content-Type", "application/json")
 	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+}
+
+func readAndReplaceBody(resp *http.Response, modifier func([]byte) ([]byte, error)) error {
+	if resp.Body == nil {
+		return nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	modifiedBody, err := modifier(body)
+	if err != nil {
+		return err
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(modifiedBody))
+	resp.ContentLength = int64(len(modifiedBody))
+	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
+
+	return nil
 }

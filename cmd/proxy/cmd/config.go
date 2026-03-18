@@ -13,6 +13,8 @@ import (
 	"github.com/abac/proxy/internal/policy/filter"
 	"github.com/abac/proxy/internal/policy/matcher"
 	"github.com/abac/proxy/internal/proxy"
+	"github.com/abac/proxy/internal/proxy/allowlist"
+	"github.com/abac/proxy/internal/proxy/interceptor"
 	"github.com/spf13/viper"
 )
 
@@ -94,12 +96,14 @@ func (o *RootOptions) Run(ctx context.Context) error {
 	}
 
 	e := engine.New(a, matcher.New(), filter.New())
-	interceptor := proxy.NewABACInterceptor(e)
+	i := interceptor.New(e)
 
-	srv, err := proxy.NewServer(o.Config.Allowlist, interceptor)
+	hosts, err := allowlist.New(o.Config.Allowlist)
 	if err != nil {
-		return fmt.Errorf("failed to create proxy server: %w", err)
+		return fmt.Errorf("failed to load allowlist: %w", err)
 	}
+
+	srv := proxy.New(hosts, i)
 
 	addr := fmt.Sprintf(":%d", o.Config.Port)
 	return srv.Start(ctx, addr)

@@ -1,4 +1,4 @@
-package proxy
+package allowlist
 
 import (
 	"encoding/json"
@@ -12,35 +12,43 @@ type HostEntry struct {
 	Scheme string `json:"scheme"`
 }
 
-type Allowlist struct {
+type Allowlist interface {
+	FindHost(host string) (scheme string, found bool)
+	IsAllowed(host string) bool
+	GetHostList() []string
+}
+
+type allowlist struct {
 	AllowedHosts []HostEntry `json:"allowed_hosts"`
 }
 
-func LoadAllowlist(path string) (*Allowlist, error) {
+var _ Allowlist = (*allowlist)(nil)
+
+func New(path string) (Allowlist, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read allowlist file: %w", err)
 	}
 
-	var allowlist Allowlist
-	if err := json.Unmarshal(data, &allowlist); err != nil {
+	var al allowlist
+	if err := json.Unmarshal(data, &al); err != nil {
 		return nil, fmt.Errorf("failed to parse allowlist JSON: %w", err)
 	}
 
-	if len(allowlist.AllowedHosts) == 0 {
+	if len(al.AllowedHosts) == 0 {
 		return nil, fmt.Errorf("allowlist must contain at least one host")
 	}
 
-	for i := range allowlist.AllowedHosts {
-		if allowlist.AllowedHosts[i].Scheme == "" {
-			allowlist.AllowedHosts[i].Scheme = "https"
+	for i := range al.AllowedHosts {
+		if al.AllowedHosts[i].Scheme == "" {
+			al.AllowedHosts[i].Scheme = "https"
 		}
 	}
 
-	return &allowlist, nil
+	return &al, nil
 }
 
-func (a *Allowlist) FindHost(host string) (string, bool) {
+func (a *allowlist) FindHost(host string) (string, bool) {
 	host = strings.ToLower(strings.TrimSpace(host))
 
 	for _, entry := range a.AllowedHosts {
@@ -59,12 +67,12 @@ func (a *Allowlist) FindHost(host string) (string, bool) {
 	return "", false
 }
 
-func (a *Allowlist) IsAllowed(host string) bool {
+func (a *allowlist) IsAllowed(host string) bool {
 	_, found := a.FindHost(host)
 	return found
 }
 
-func (a *Allowlist) GetHostList() []string {
+func (a *allowlist) GetHostList() []string {
 	hosts := make([]string, len(a.AllowedHosts))
 	for i, entry := range a.AllowedHosts {
 		hosts[i] = entry.Scheme + "://" + entry.Host
