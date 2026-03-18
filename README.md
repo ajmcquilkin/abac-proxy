@@ -12,7 +12,7 @@ When AI agents (Claude Code, custom tool-use agents, etc.) run inside sandboxes,
 
 2. **No access control.** Most REST APIs have coarse or nonexistent RBAC. An agent with a valid API key can typically hit any endpoint and read any field — far more access than it needs for its task.
 
-ABAC solves both by acting as a credential-injecting, policy-enforcing gateway that lives *outside* the sandbox.
+ABAC solves both by acting as a credential-injecting, policy-enforcing gateway that lives _outside_ the sandbox.
 
 ## How It Works
 
@@ -137,15 +137,15 @@ Policies are defined in `.policygroup.json` files. A policy group binds a proxy 
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `localToken` | The token agents use to authenticate to the proxy |
-| `baseUrl` | Upstream API base URL |
-| `localUpstreamTokenKey` | Environment variable containing the real API credential |
-| `rules[].route` | Path pattern (`*` matches a single path segment) |
-| `rules[].method` | HTTP method (empty = match all methods) |
-| `rules[].action` | `allow` or `deny` |
-| `rules[].response_filter` | Optional — filter response JSON fields |
+| Field                     | Description                                             |
+| ------------------------- | ------------------------------------------------------- |
+| `localToken`              | The token agents use to authenticate to the proxy       |
+| `baseUrl`                 | Upstream API base URL                                   |
+| `localUpstreamTokenKey`   | Environment variable containing the real API credential |
+| `rules[].route`           | Path pattern (`*` matches a single path segment)        |
+| `rules[].method`          | HTTP method (empty = match all methods)                 |
+| `rules[].action`          | `allow` or `deny`                                       |
+| `rules[].response_filter` | Optional — filter response JSON fields                  |
 
 ### Upstream Authentication
 
@@ -180,11 +180,11 @@ Control what data agents can see from API responses:
 
 ### CLI Flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--policy-group <path>` | — | Path to a `.policygroup.json` file (repeatable) |
-| `--policy-group-dir <dir>` | — | Load all `*.policygroup.json` files from directory |
-| `--port <num>` | `8080` | HTTP listen port |
+| Flag                        | Default | Description                                              |
+| --------------------------- | ------- | -------------------------------------------------------- |
+| `--policy-group <path>`     | —       | Path to a `.policygroup.json` file (repeatable)          |
+| `--policy-group-dir <dir>`  | —       | Load all `*.policygroup.json` files from directory       |
+| `--port <num>`              | `8080`  | HTTP listen port                                         |
 | `--passthrough-unspecified` | `false` | Allow requests that don't match any rule (default: deny) |
 
 ### Default Action & Rule Resolution
@@ -259,7 +259,3 @@ bazel run //cmd/proxy:push-local
 # After adding/changing files or imports
 bazel run //:gazelle
 ```
-
-## License
-
-[TODO]
