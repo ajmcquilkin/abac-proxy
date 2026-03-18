@@ -1,5 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
-load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index", "oci_load", "oci_push")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 go_library(
@@ -16,38 +16,81 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
-pkg_tar(
-    name = "tar",
-    srcs = [":proxy"],
-    package_dir = "/root",
+go_binary(
+    name = "proxy_linux_amd64",
+    embed = [":proxy_lib"],
+    goarch = "amd64",
+    goos = "linux",
     visibility = ["//visibility:public"],
 )
 
-oci_image(
-    name = "image",
-    base = "@alpine_linux_amd64",
-    cmd = ["./proxy"],
-    tars = [":tar"],
+go_binary(
+    name = "proxy_linux_arm64",
+    embed = [":proxy_lib"],
+    goarch = "arm64",
+    goos = "linux",
     visibility = ["//visibility:public"],
+)
+
+pkg_tar(
+    name = "tar_linux_amd64",
+    srcs = [":proxy_linux_amd64"],
+    package_dir = "/root",
+)
+
+pkg_tar(
+    name = "tar_linux_arm64",
+    srcs = [":proxy_linux_arm64"],
+    package_dir = "/root",
+)
+
+oci_image(
+    name = "image_linux_amd64",
+    base = "@alpine_linux_amd64",
+    entrypoint = ["./proxy_linux_amd64"],
+    tars = [":tar_linux_amd64"],
     workdir = "/root",
+)
+
+oci_image(
+    name = "image_linux_arm64",
+    base = "@alpine_linux_arm64_v8",
+    entrypoint = ["./proxy_linux_arm64"],
+    tars = [":tar_linux_arm64"],
+    workdir = "/root",
+)
+
+oci_image_index(
+    name = "image_index",
+    images = [
+        ":image_linux_amd64",
+        ":image_linux_arm64",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 oci_load(
     name = "tarball",
-    image = ":image",
+    image = ":image_linux_arm64",
+    repo_tags = ["abac-proxy:latest"],
+)
+
+oci_load(
+    name = "tarball-amd64",
+    image = ":image_linux_amd64",
     repo_tags = ["abac-proxy:latest"],
 )
 
 oci_push(
     name = "push-local",
-    image = ":image",
+    image = ":image_index",
     remote_tags = ["latest"],
     repository = "localhost:5001/abac-proxy",
 )
 
 oci_push(
     name = "push-ghcr",
-    image = ":image",
+    image = ":image_index",
     remote_tags = ["latest"],
     repository = "ghcr.io/ajmcquilkin/abac-proxy",
 )

@@ -28,8 +28,9 @@ oci.pull(
     image = "docker.io/library/alpine",
     platforms = [
         "linux/amd64",
+        "linux/arm64/v8",
     ],
     reproducible = False,
     tag = "latest",
 )
-use_repo(oci, "alpine", "alpine_linux_amd64")
+use_repo(oci, "alpine", "alpine_linux_amd64", "alpine_linux_arm64_v8")

@@ -54,6 +54,35 @@ The agent authenticates to the proxy with a non-sensitive proxy token. The proxy
 
 ## Getting Started
 
+### Docker
+
+Pull the pre-built image from GHCR:
+
+```bash
+docker pull ghcr.io/ajmcquilkin/abac-proxy:latest
+```
+
+Run from the root of the repo using the included examples:
+
+```bash
+docker run -p 8080:8080 \
+  -v ./examples:/policies \
+  --env-file .env \
+  ghcr.io/ajmcquilkin/abac-proxy:latest \
+  --policy-group-dir /policies
+```
+
+Pin to a specific commit SHA for reproducibility:
+
+```bash
+docker run -p 8080:8080 \
+  -v ./examples:/policies \
+  ghcr.io/ajmcquilkin/abac-proxy:<commit-sha> \
+  --policy-group-dir /policies
+```
+
+### From Source
+
 ABAC uses [Hermit](https://cashapp.github.io/hermit/) for toolchain management (best supported on macOS). After cloning the repo, activate Hermit to get the correct versions of Bazel, Go, and other tools:
 
 ```bash
@@ -68,30 +97,13 @@ The fastest way to run the proxy locally is with the included `run.sh` script, w
 
 `run.sh` also supports `--db` for database mode and `--migrate` / `--seed` for DB setup. See the script header for details.
 
-### Manual Build
+You can also build and run the binary directly:
 
 ```bash
 bazel build //cmd/proxy:proxy
 
 ./bazel-bin/cmd/proxy/proxy \
   --policy-group ./policies/my-agents.policygroup.json --port 8080
-```
-
-### Docker
-
-A hosted image is coming soon. In the meantime, build and push to your own registry with Bazel:
-
-```bash
-# Build the OCI image and push to a local registry (localhost:5001)
-bazel run //cmd/proxy:push-local
-
-# Then run it
-docker run -p 8080:8080 \
-  -v ./policies:/policies \
-  -e BROWSERBASE_API_KEY=sk-... \
-  -e OPENAI_API_KEY=sk-... \
-  localhost:5001/abac-proxy:latest \
-  --policy-group /policies/my-agents.policygroup.json
 ```
 
 ### Test It
